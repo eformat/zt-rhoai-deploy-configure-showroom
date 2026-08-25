@@ -1,0 +1,114 @@
+= Module 4: Model Serving with vLLM
+:navtitle: Module 4: Serving with vLLM
+:toc: macro
+:toclevels: 1
+:icons: font
+
+vLLM is the default LLM serving runtime in {rhoai} {rhoai_version}. In this module you deploy a model
+on a *CPU-only* cluster and make OpenAI-compatible inference requests — no GPU required.
+
+== Learning objectives
+
+By the end of this module you will be able to:
+
+* Deploy `{cpu_model}` (single-node, no scheduler) on the vLLM runtime
+* Send an inference request to the OpenAI-compatible endpoint
+* Expose the model on an external route
+* Deploy a vLLM simulator for a GPU-free smoke test
+* Read the `InferenceService` / `ServingRuntime` YAML to understand vLLM arguments
+
+== Prerequisites
+
+* The model-serving platform is configured (xref:03-model-serving-platform.adoc[Module 3] complete)
+* A storage connection or URI for the model
+
+== Exercise 1: Deploy the CPU model
+
+Deploy `{cpu_model}` as an `InferenceService` bound to the vLLM runtime. The manifest requests CPU
+only and disables the scheduler for single-node serving.
+
+[source,bash,role="execute",subs="attributes"]
+----
+oc apply -k manifests/04-vllm/opt-125m -n {project_name}
+----
+
+Wait for the model to become ready:
+
+[source,bash,role="execute",subs="attributes"]
+----
+oc wait inferenceservice/opt-125m -n {project_name} --for=condition=Ready --timeout=15m
+----
+
+=== Verify
+
+* The `InferenceService` reports `READY=True`:
++
+[source,bash,role="execute",subs="attributes"]
+----
+oc get inferenceservice opt-125m -n {project_name}
+----
+
+== Exercise 2: Query the OpenAI-compatible API
+
+. Capture the model's internal URL and send a completion request:
++
+[source,bash,role="execute",subs="attributes"]
+----
+URL=$(oc get inferenceservice opt-125m -n {project_name} -o jsonpath='{.status.url}')
+curl -sk $URL/v1/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"opt-125m","prompt":"Red Hat OpenShift AI is","max_tokens":16}'
+----
+
+=== Verify
+
+* The call returns HTTP 200 with a JSON body containing generated text in `choices[0].text`.
+
+== Exercise 3: Expose an external route
+
+. Confirm the external route created by KServe (or enable token auth) and reach the model from
+  outside the cluster:
++
+[source,bash,role="execute",subs="attributes"]
+----
+oc get route -n {project_name} | grep opt-125m
+curl -sk {model_endpoint_url}/v1/models
+----
+
+=== Verify
+
+* The model is reachable through the external route and `/v1/models` lists `opt-125m`.
+
+== Exercise 4: Deploy the vLLM simulator (GPU-free smoke test)
+
+The vLLM simulator responds to the OpenAI API without loading real weights — useful for validating
+the serving path and, later, for scaling exercises.
+
+[source,bash,role="execute",subs="attributes"]
+----
+oc apply -k manifests/04-vllm/simulator -n {project_name}
+oc wait inferenceservice/{sim_model} -n {project_name} --for=condition=Ready --timeout=10m
+----
+
+=== Verify
+
+* A completion request to the simulator endpoint returns a successful response.
+
+== Exercise 5 (Optional): Inspect the vLLM runtime arguments
+
+[source,bash,role="execute",subs="attributes"]
+----
+oc get inferenceservice opt-125m -n {project_name} -o yaml | less
+oc get servingruntime -n {project_name} -o yaml | less
+----
+
+Notice the vLLM `args` (for example `--max-model-len`, `--dtype`) and how the CPU profile omits GPU
+resource requests.
+
+== Module summary
+
+* You served `{cpu_model}` on vLLM on a CPU-only cluster and got a 200 from `/v1/completions`.
+* You reached the model over an external route.
+* You deployed the simulator for GPU-free testing.
+
+Continue to xref:05-maas-governance.adoc[Module 5: MaaS Governance].

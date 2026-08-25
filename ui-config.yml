@@ -1,0 +1,14 @@
+---
+type: showroom
+default_width: 35
+persist_url_state: true
+
+view_switcher:
+  enabled: true
+  default_mode: split
+
+tabs:
+  - name: OpenShift Console
+    url: 'https://console-openshift-console.${DOMAIN}'
+  - name: Red Hat OpenShift AI
+    url: 'https://rhods-dashboard-redhat-ods-applications.${DOMAIN}'

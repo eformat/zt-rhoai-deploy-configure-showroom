@@ -1,0 +1,17 @@
+---
+# Reference copy of the CatalogSource that oc-mirror v2 generates under
+# oc-mirror-workspace/working-dir/cluster-resources/. Replace the image with the
+# digest oc-mirror reports for your mirror registry.
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: cs-redhat-operator-index
+  namespace: openshift-marketplace
+spec:
+  sourceType: grpc
+  image: REGISTRY_URL/redhat/redhat-operator-index:v4.21
+  displayName: Mirrored Red Hat Operators
+  publisher: Red Hat
+  updateStrategy:
+    registryPoll:
+      interval: 10m

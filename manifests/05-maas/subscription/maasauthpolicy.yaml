@@ -1,0 +1,13 @@
+---
+# Technology Preview — binds API-key auth (Authorino) to the subscription/gateway.
+apiVersion: maas.redhat.com/v1alpha1
+kind: MaaSAuthPolicy
+metadata:
+  name: demo-authpolicy
+  namespace: rhoai-deploy
+spec:
+  tenantRef:
+    name: demo-tenant
+  subscriptionRef:
+    name: demo-subscription
+  authType: apiKey

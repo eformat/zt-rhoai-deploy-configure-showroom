@@ -1,0 +1,107 @@
+= Module 1: Installing RHOAI (Connected)
+:navtitle: Module 1: Install (Connected)
+:toc: macro
+:toclevels: 1
+:icons: font
+
+Before any model can be served, {rhoai} {rhoai_version} must be installed. In this module you install
+the operator on a *connected* {ocp} cluster and create a `DataScienceCluster` that enables the
+components the rest of the workshop depends on.
+
+== Learning objectives
+
+By the end of this module you will be able to:
+
+* Install the {rhoai} Operator into the `redhat-ods-operator` namespace
+* Create a `DataScienceCluster` (DSC) that enables the dashboard and KServe
+* Reach and log into the {rhoai-short} dashboard
+* Confirm the predefined {rhoai-short} namespaces exist
+
+== Exercise 1: Install the RHOAI Operator
+
+. Apply the operator namespace, operator group, and subscription:
++
+[source,bash,role="execute"]
+----
+oc apply -k manifests/01-install/operator
+----
+
+. Watch the operator ClusterServiceVersion (CSV) reach `Succeeded`:
++
+[source,bash,role="execute"]
+----
+oc get csv -n redhat-ods-operator -w
+----
+
+=== Verify
+
+* The `rhods-operator.*` CSV reports `PHASE=Succeeded`:
++
+[source,bash,role="execute"]
+----
+oc get csv -n redhat-ods-operator -o jsonpath='{.items[?(@.spec.displayName=="Red Hat OpenShift AI")].status.phase}{"\n"}'
+----
+
+== Exercise 2: Create the DataScienceCluster
+
+The `DataScienceCluster` (DSC) turns on {rhoai-short} components. This workshop needs, at minimum,
+the dashboard and KServe (single-model serving).
+
+. Apply the DSCInitialization and DataScienceCluster:
++
+[source,bash,role="execute"]
+----
+oc apply -k manifests/01-install/dsc
+----
+
+. Wait for the DSC to become `Ready`:
++
+[source,bash,role="execute"]
+----
+oc wait datasciencecluster/default-dsc --for=condition=Ready --timeout=15m
+----
+
+=== Verify
+
+* The DSC reports a `Ready` phase:
++
+[source,bash,role="execute"]
+----
+oc get datasciencecluster default-dsc -o jsonpath='{.status.phase}{"\n"}'
+----
+
+== Exercise 3: Open the RHOAI dashboard
+
+. Get the dashboard route and open it in a browser:
++
+[source,bash,role="execute"]
+----
+oc get route rhods-dashboard -n redhat-ods-applications -o jsonpath='https://{.spec.host}{"\n"}'
+----
+
+. Log in with `{user}` / `{password}` and confirm the {rhoai-short} home page loads.
+
+=== Verify
+
+* The dashboard route returns HTTP 200 and the landing page renders.
+
+== Exercise 4: Confirm the predefined namespaces
+
+[source,bash,role="execute"]
+----
+oc get ns redhat-ods-operator redhat-ods-applications rhods-notebooks
+----
+
+=== Verify
+
+* All three namespaces exist and are `Active`.
+
+== Module summary
+
+* You installed the {rhoai} Operator and confirmed its CSV reached `Succeeded`.
+* You created a `DataScienceCluster` that reached `Ready` with the dashboard and KServe enabled.
+* You logged into the {rhoai-short} dashboard.
+
+This satisfies the "RHOAI Ready" precondition. You can reach the same end state through the
+disconnected path in xref:02-install-disconnected.adoc[Module 2], or skip ahead to
+xref:03-model-serving-platform.adoc[Module 3] to configure model serving.

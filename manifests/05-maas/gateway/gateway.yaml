@@ -1,0 +1,25 @@
+---
+# MaaS API gateway (Gateway API). TLS is terminated at the edge; cert-manager issues
+# the certificate referenced here. Replace the domain with your cluster ingress domain.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: maas-gateway
+  namespace: redhat-ods-applications
+  labels:
+    app.kubernetes.io/part-of: maas
+spec:
+  gatewayClassName: kuadrant
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "maas.apps.cluster.example.com"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: maas-gateway-tls
+      allowedRoutes:
+        namespaces:
+          from: All

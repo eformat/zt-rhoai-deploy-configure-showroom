@@ -1,0 +1,64 @@
+= {lab_name}
+
+Welcome to the *{rhoai} {rhoai_version} Deploy & Configure* workshop. This hands-on lab takes you
+end-to-end: from installing {rhoai} on {ocp} through serving, governing, scaling, and observing large
+language models — all on a *CPU-only* cluster, so you can complete every exercise without a GPU.
+
+== What you'll learn
+
+Across seven modules you will:
+
+* *Install {rhoai-short}* on a connected cluster, and mirror it for a disconnected / air-gapped install
+* *Configure the model-serving platform* (KServe single-model serving + a vLLM runtime)
+* *Serve a model with vLLM* and query it through the OpenAI-compatible API
+* *Govern access with {maas}* — subscriptions, API keys, and token rate limiting
+* *Scale with distributed inference* using llm-d and the Workload Variant Autoscaler
+* *Observe* vLLM engine metrics and MaaS token-usage telemetry
+
+== Understanding and navigating the workshop UI
+
+The workshop interface lets you read instructions while working in your environment.
+
+*Left panel*: Workshop instructions and content
+
+*Right panel*: Embedded environment (OpenShift console, RHOAI dashboard, terminal)
+
+*View modes* (top navigation):
+
+* *Instructions*: Full-page instructions
+* *Split*: Side-by-side (default)
+* *Tabs*: Full-page environment
+
+== Who this is for
+
+{ocp}/platform administrators and MLOps engineers who need a repeatable, verifiable path to stand up
+and operate {rhoai} {rhoai_version}.
+
+*Experience level*: Intermediate to advanced
+
+*Estimated time*: 3-4 hours (modules are independent enough to run in a single sitting or across sessions)
+
+== Prerequisites
+
+* Cluster-admin on an {ocp} {ocp_version} cluster
+* S3-compatible object storage and PostgreSQL 14+ available (for later modules)
+* Ability to install operators: {rhcl} (Kuadrant/Authorino), cert-manager, Leader Worker Set
+
+[IMPORTANT]
+====
+This guide is a companion to — not a replacement for — the official
+link:https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4[{rhoai} {rhoai_version} documentation].
+It provides opinionated Kustomize manifests and status gates to accelerate a hands-on deployment.
+====
+
+== A note on hardware and Technology Preview
+
+* *CPU-only*: Every module runs without a GPU, using the `{cpu_model}` model and a vLLM simulator.
+  GPU-specific tuning is described conceptually and can be enabled later.
+* *Technology Preview*: Module 5 (vLLM-on-MaaS) and Module 6 (Workload Variant Autoscaler) exercise
+  Technology Preview features. They are clearly flagged; APIs and behaviour may change and they are
+  not supported for production use.
+
+== Let's get started!
+
+Continue to xref:getting-connected.adoc[Getting Connected] to log in and verify your environment.

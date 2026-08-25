@@ -1,0 +1,14 @@
+---
+# Technology Preview — publishes the opt-125m InferenceService through MaaS.
+apiVersion: maas.redhat.com/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: opt-125m
+  namespace: rhoai-deploy
+spec:
+  tenantRef:
+    name: demo-tenant
+  inferenceServiceRef:
+    name: opt-125m
+    namespace: rhoai-deploy
+  displayName: "facebook/opt-125m"

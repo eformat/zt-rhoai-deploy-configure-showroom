@@ -1,0 +1,42 @@
+name: modules
+title: "RHOAI 3.4 Deploy & Configure Workshop"
+version: ~
+nav:
+  - modules/ROOT/nav.adoc
+
+asciidoc:
+  attributes:
+    source-highlighter: highlight.js
+    experimental: true
+    page-pagination: true
+    showroom-collection-version: v1.5.2
+    # --- Product name shortcuts ---
+    rhoai: "Red Hat OpenShift AI"
+    rhoai-short: "RHOAI"
+    ocp: "OpenShift Container Platform"
+    ocp-short: "OpenShift"
+    maas: "Models-as-a-Service"
+    rhcl: "Red Hat Connectivity Link"
+    rhoai_version: "3.4"
+    ocp_version: "4.19-4.21"
+    # --- Lab identity ---
+    lab_name: "RHOAI 3.4 Deploy & Configure"
+    guid: abc123
+    user: user1
+    password: "%password%"
+    project_name: rhoai-deploy
+    # --- Cluster coordinates (overridden per environment) ---
+    openshift_api_url: "https://api.cluster.example.com:6443"
+    openshift_console_url: https://console-openshift-console.apps.cluster.example.com
+    openshift_cluster_ingress_domain: apps.cluster.example.com
+    rhoai_dashboard_url: https://rhods-dashboard-redhat-ods-applications.apps.cluster.example.com
+    # --- Workshop-specific endpoints ---
+    model_endpoint_url: https://opt-125m-rhoai-deploy.apps.cluster.example.com
+    maas_gateway_url: https://maas.apps.cluster.example.com
+    registry_url: registry.apps.cluster.example.com
+    metrics_console_url: https://console-openshift-console.apps.cluster.example.com/monitoring
+    # --- Models ---
+    cpu_model: "facebook/opt-125m"
+    sim_model: "vllm-simulator"
+    # --- Source repo for manifests ---
+    repo-url: "https://github.com/eformat/zt-rhoai-deploy-configure-showroom"

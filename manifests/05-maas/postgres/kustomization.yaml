@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# NOTE: the postgres-creds and maas-db-config secrets are created imperatively in the
+# module (they must not live in git). Deploy them before applying this kustomization.
+resources:
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml

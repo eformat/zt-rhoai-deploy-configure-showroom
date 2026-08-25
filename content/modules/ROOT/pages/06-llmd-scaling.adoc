@@ -1,0 +1,126 @@
+= Module 6: Scaling with Distributed Inference (llm-d + WVA)
+:navtitle: Module 6: Scaling with llm-d + WVA
+:toc: macro
+:toclevels: 1
+:icons: font
+
+Single-replica serving does not scale to real traffic. {rhoai} {rhoai_version} introduces distributed
+inference with *llm-d* and the *Workload Variant Autoscaler (WVA)*, which scales replicas from
+inference-specific signals (KV-cache utilization, queue depth) rather than generic CPU/memory.
+
+[IMPORTANT]
+====
+*Technology Preview.* The Workload Variant Autoscaler is a Technology Preview feature in {rhoai}
+{rhoai_version}. APIs and behaviour may change; it is not supported for production use.
+====
+
+== Learning objectives
+
+By the end of this module you will be able to:
+
+* Install the llm-d prerequisite operators (Leader Worker Set, {rhcl})
+* Deploy a model as an `LLMInferenceService`
+* Enable the Workload Variant Autoscaler with a `VariantAutoscaling` CR
+* Observe a load-driven replica change
+* Tune the WVA saturation-scaling thresholds
+
+== Prerequisites
+
+* The model-serving platform is enabled (xref:03-model-serving-platform.adoc[Module 3])
+* User Workload Monitoring enabled (for `kserve_vllm` metrics — see xref:07-observability.adoc[Module 7])
+
+== Exercise 1: Install the llm-d prerequisite operators
+
+[source,bash,role="execute"]
+----
+oc apply -k manifests/06-llmd/operators
+----
+
+=== Verify
+
+* Both the Leader Worker Set and {rhcl} operator CSVs reach `Succeeded`:
++
+[source,bash,role="execute"]
+----
+oc get csv -A | grep -Ei 'leader-worker-set|connectivity'
+----
+
+== Exercise 2: Deploy an LLMInferenceService
+
+Deploy the CPU model (or simulator) as an `LLMInferenceService`, which brings up the llm-d Endpoint
+Picker (EPP) and vLLM pods.
+
+[source,bash,role="execute",subs="attributes"]
+----
+oc apply -k manifests/06-llmd/service -n {project_name}
+oc get pods -n {project_name} -w
+----
+
+=== Verify
+
+* The llm-d Endpoint Picker (EPP) pod and vLLM pod(s) are `Running`:
++
+[source,bash,role="execute",subs="attributes"]
+----
+oc get pods -n {project_name} -l app.kubernetes.io/part-of=llm-d
+----
+
+== Exercise 3: Enable the Workload Variant Autoscaler
+
+[source,bash,role="execute",subs="attributes"]
+----
+oc apply -k manifests/06-llmd/autoscaling -n {project_name}
+----
+
+This creates a `VariantAutoscaling` CR with `spec.minReplicas` / `spec.maxReplicas`.
+
+=== Verify
+
+* A KEDA `ScaledObject` is created for the deployment:
++
+[source,bash,role="execute",subs="attributes"]
+----
+oc get scaledobject -n {project_name}
+----
+
+== Exercise 4: Drive load and observe scaling
+
+. Generate load against the model (the simulator responds fast enough to build queue depth on CPU):
++
+[source,bash,role="execute",subs="attributes"]
+----
+for i in $(seq 1 500); do
+  curl -sk -o /dev/null {model_endpoint_url}/v1/completions \
+    -H "Content-Type: application/json" \
+    -d '{"model":"opt-125m","prompt":"scale test","max_tokens":64}' &
+done; wait
+----
+
+. Watch the replica count:
++
+[source,bash,role="execute",subs="attributes"]
+----
+oc get deploy -n {project_name} -w
+----
+
+=== Verify
+
+* The replica count increases when the KV-cache / queue thresholds are exceeded.
+
+== Exercise 5 (Optional): Tune the saturation-scaling thresholds
+
+[source,bash,role="execute"]
+----
+oc edit configmap workload-variant-autoscaler-saturation-scaling-config -n redhat-ods-applications
+----
+
+Adjust `kvCacheThreshold` and `queueLengthThreshold`, re-run the load, and observe the effect on
+scaling responsiveness.
+
+== Module summary
+
+* You installed the llm-d prerequisites and deployed an `LLMInferenceService`.
+* You enabled the Workload Variant Autoscaler (Technology Preview) and saw a KEDA `ScaledObject`.
+* You drove load and watched replicas scale on inference-specific signals.
+
+Continue to xref:07-observability.adoc[Module 7: Observability].

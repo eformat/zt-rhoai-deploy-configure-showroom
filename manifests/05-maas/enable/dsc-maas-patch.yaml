@@ -1,0 +1,9 @@
+# Strategic-merge patch enabling MaaS on the existing DataScienceCluster.
+# Apply with: oc patch datasciencecluster default-dsc --type merge \
+#   --patch-file manifests/05-maas/enable/dsc-maas-patch.yaml
+spec:
+  components:
+    kserve:
+      managementState: Managed
+      modelsAsService:
+        managementState: Managed

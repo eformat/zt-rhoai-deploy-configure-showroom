@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Replace REGISTRY_URL in the files below with your mirror registry before applying,
+# or apply the resources oc-mirror v2 generated under cluster-resources/.
+resources:
+  - idms.yaml
+  - catalogsource.yaml

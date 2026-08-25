@@ -1,0 +1,21 @@
+---
+# S3-compatible connection Secret consumed by KServe. The
+# opendatahub.io/connection-type-protocol annotation is what makes KServe recognise it.
+# Fill in the endpoint, region, bucket, and credentials before applying.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-connection-models
+  annotations:
+    opendatahub.io/connection-type-protocol: s3
+    openshift.io/display-name: "Model storage (S3)"
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/managed: "true"
+stringData:
+  AWS_ACCESS_KEY_ID: "CHANGE_ME"
+  AWS_SECRET_ACCESS_KEY: "CHANGE_ME"
+  AWS_S3_ENDPOINT: "https://s3.example.com"
+  AWS_DEFAULT_REGION: "us-east-1"
+  AWS_S3_BUCKET: "models"
+type: Opaque

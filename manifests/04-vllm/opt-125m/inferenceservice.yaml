@@ -1,0 +1,29 @@
+---
+# facebook/opt-125m served on the CPU vLLM runtime, single-node, no scheduler.
+# storageUri points at an OCI modelcar; swap for an s3:// URI backed by the
+# aws-connection-models Secret if you stage weights in object storage instead.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: opt-125m
+  annotations:
+    openshift.io/display-name: "facebook/opt-125m (CPU)"
+    serving.kserve.io/deploymentMode: RawDeployment
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 1
+    model:
+      modelFormat:
+        name: vLLM
+      runtime: vllm-cpu-runtime
+      storageUri: "oci://quay.io/redhat-ai-services/modelcar-catalog:opt-125m"
+      resources:
+        requests:
+          cpu: "2"
+          memory: 8Gi
+        limits:
+          cpu: "4"
+          memory: 12Gi

@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# llm-d prerequisites. Red Hat Connectivity Link is installed in Module 5; if you
+# skipped Module 5, apply manifests/05-maas/connectivity-link first.
+resources:
+  - leader-worker-set-subscription.yaml

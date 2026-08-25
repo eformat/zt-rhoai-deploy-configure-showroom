@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Update the hostname in gateway.yaml to your cluster ingress domain before applying.
+resources:
+  - gateway.yaml

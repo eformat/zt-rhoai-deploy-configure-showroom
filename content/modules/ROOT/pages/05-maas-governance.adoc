@@ -1,0 +1,154 @@
+= Module 5: Governing Access with Models-as-a-Service (MaaS)
+:navtitle: Module 5: MaaS Governance
+:toc: macro
+:toclevels: 1
+:icons: font
+
+Serving a model is not enough for shared environments — access must be governed. {maas} adds a
+subscription and rate-limit layer over model serving, backed by an API gateway
+({rhcl} / Kuadrant) and a PostgreSQL-backed API-key store.
+
+[IMPORTANT]
+====
+*Technology Preview.* Serving vLLM models through {maas} is a Technology Preview feature in
+{rhoai} {rhoai_version}. APIs and behaviour may change; it is not supported for production use.
+====
+
+== Learning objectives
+
+By the end of this module you will be able to:
+
+* Enable {maas} in the `DataScienceCluster` and dashboard
+* Provision the MaaS PostgreSQL database and `maas-db-config` secret
+* Install {rhcl}, register Kuadrant, and bootstrap gateway TLS
+* Create MaaS custom resources (`Tenant`, `MaaSModelRef`, `MaaSSubscription`, `MaaSAuthPolicy`)
+* Demonstrate token rate limiting (HTTP 429)
+
+== Prerequisites
+
+* A served model (xref:04-vllm-serving.adoc[Module 4] complete)
+* PostgreSQL 14+ reachable; {rhcl} and cert-manager installable
+
+== Exercise 1: Provision PostgreSQL and secrets
+
+The MaaS API needs its database *before* it is enabled, or `maas-api` will crash-loop.
+
+. Create the database credentials and connection secret:
++
+[source,bash,role="execute"]
+----
+POSTGRES_PASSWORD=$(openssl rand -base64 16 | tr -d '=+/')
+oc create secret generic postgres-creds -n redhat-ods-applications \
+  --from-literal=POSTGRES_USER=maas \
+  --from-literal=POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
+  --from-literal=POSTGRES_DB=maas
+oc create secret generic maas-db-config -n redhat-ods-applications \
+  --from-literal=DB_CONNECTION_URL="postgresql://maas:${POSTGRES_PASSWORD}@postgres:5432/maas?sslmode=disable"
+----
+
+. Deploy PostgreSQL:
++
+[source,bash,role="execute"]
+----
+oc apply -k manifests/05-maas/postgres -n redhat-ods-applications
+oc rollout status deploy/postgres -n redhat-ods-applications
+----
+
+=== Verify
+
+* The `postgres` deployment is `Available` and both secrets exist in `redhat-ods-applications`.
+
+== Exercise 2: Install Red Hat Connectivity Link and bootstrap the gateway
+
+. Install {rhcl} and register Kuadrant:
++
+[source,bash,role="execute"]
+----
+oc apply -k manifests/05-maas/connectivity-link
+----
+
+. Bootstrap gateway TLS and the MaaS gateway:
++
+[source,bash,role="execute"]
+----
+oc apply -k manifests/05-maas/gateway
+----
+
+=== Verify
+
+* Both operator CSVs reach `Succeeded` and the MaaS API gateway route serves TLS.
+
+== Exercise 3: Enable MaaS in the DSC and dashboard
+
+[source,bash,role="execute"]
+----
+oc patch datasciencecluster default-dsc --type merge \
+  --patch-file manifests/05-maas/enable/dsc-maas-patch.yaml
+oc patch odhdashboardconfig odh-dashboard-config -n redhat-ods-applications --type merge \
+  --patch-file manifests/05-maas/enable/dashboard-maas-patch.yaml
+----
+
+This sets `spec.components.kserve.modelsAsService.managementState: Managed` in the
+`DataScienceCluster` and `spec.dashboardConfig.modelAsService: true` in `OdhDashboardConfig`.
+
+=== Verify
+
+* The *Models as a Service* view appears in the {rhoai-short} dashboard and the MaaS components
+  become ready.
+
+== Exercise 4: Create the MaaS custom resources
+
+Publish a model and govern it with a subscription and a token rate limit.
+
+[source,bash,role="execute",subs="attributes"]
+----
+oc apply -k manifests/05-maas/subscription -n {project_name}
+----
+
+This creates a `Tenant`, a `MaaSModelRef` (pointing at the `opt-125m` model), a `MaaSSubscription`
+with a token rate limit, and a `MaaSAuthPolicy`.
+
+=== Verify
+
+* An issued API key reaches the model through the gateway:
++
+[source,bash,role="execute",subs="attributes"]
+----
+API_KEY=$(oc get secret maas-apikey-demo -n {project_name} -o jsonpath='{.data.api-key}' | base64 -d)
+curl -sk {maas_gateway_url}/v1/completions \
+  -H "Authorization: Bearer ${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"opt-125m","prompt":"hello","max_tokens":8}'
+----
+
+== Exercise 5: Demonstrate rate limiting
+
+Send requests beyond the subscription's token limit and observe throttling.
+
+[source,bash,role="execute",subs="attributes"]
+----
+for i in $(seq 1 50); do
+  curl -sk -o /dev/null -w "%{http_code}\n" {maas_gateway_url}/v1/completions \
+    -H "Authorization: Bearer ${API_KEY}" -H "Content-Type: application/json" \
+    -d '{"model":"opt-125m","prompt":"hi","max_tokens":32}'
+done | sort | uniq -c
+----
+
+=== Verify
+
+* Requests exceeding the subscription limit return *HTTP 429*.
+
+== Exercise 6 (Optional): Test in the Gen AI playground
+
+. In the {rhoai-short} dashboard, open the *Gen AI playground* and select the published model.
+
+=== Verify
+
+* The published model appears as a selectable endpoint and returns a response in the playground.
+
+== Module summary
+
+* You enabled {maas} (Technology Preview) end-to-end: database, gateway, DSC/dashboard, and CRs.
+* An API key reaches the model, and requests over quota return 429.
+
+Continue to xref:06-llmd-scaling.adoc[Module 6: Scaling with llm-d + WVA].

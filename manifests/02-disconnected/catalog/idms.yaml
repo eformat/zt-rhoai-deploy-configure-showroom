@@ -1,0 +1,15 @@
+---
+# Reference ImageDigestMirrorSet. oc-mirror v2 generates the authoritative version
+# (idms-oc-mirror.yaml) with the exact source->mirror mappings for your registry.
+apiVersion: config.openshift.io/v1
+kind: ImageDigestMirrorSet
+metadata:
+  name: rhoai-disconnected
+spec:
+  imageDigestMirrors:
+    - source: registry.redhat.io
+      mirrors:
+        - REGISTRY_URL
+    - source: quay.io
+      mirrors:
+        - REGISTRY_URL

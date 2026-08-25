@@ -1,0 +1,29 @@
+---
+# Distributed inference with llm-d. Deploying an LLMInferenceService brings up the
+# llm-d Endpoint Picker (EPP) and vLLM worker pods. CPU-only variant using the simulator
+# so scaling is observable without GPUs.
+apiVersion: serving.kserve.io/v1alpha1
+kind: LLMInferenceService
+metadata:
+  name: opt-125m-llmd
+  namespace: rhoai-deploy
+  labels:
+    app.kubernetes.io/part-of: llm-d
+spec:
+  model:
+    uri: "oci://quay.io/redhat-ai-services/modelcar-catalog:opt-125m"
+    name: opt-125m
+  replicas: 1
+  router:
+    scheduler: {}
+  template:
+    containers:
+      - name: main
+        image: quay.io/vllm/vllm-cpu:latest
+        resources:
+          requests:
+            cpu: "2"
+            memory: 8Gi
+          limits:
+            cpu: "4"
+            memory: 12Gi

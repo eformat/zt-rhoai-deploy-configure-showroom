@@ -1,0 +1,26 @@
+---
+# oc-mirror v2 ImageSetConfiguration for RHOAI 3.4 (disconnected mirror).
+# Adjust the OCP/RHOAI versions and add any extra operators your workshop needs.
+apiVersion: mirror.openshift.io/v2alpha1
+kind: ImageSetConfiguration
+mirror:
+  platform:
+    channels:
+      - name: stable-4.21
+        type: ocp
+        minVersion: 4.21.0
+        maxVersion: 4.21.0
+  operators:
+    - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.21
+      packages:
+        - name: rhods-operator
+          channels:
+            - name: stable
+        # Dependencies used by later modules:
+        - name: servicemeshoperator
+        - name: authorino-operator
+        - name: kuadrant-operator
+        - name: openshift-cert-manager-operator
+        - name: leader-worker-set
+  additionalImages:
+    - name: quay.io/vllm/vllm-cpu:latest

@@ -1,0 +1,15 @@
+---
+# Technology Preview — subscription with a token rate limit that drives HTTP 429 on excess.
+apiVersion: maas.redhat.com/v1alpha1
+kind: MaaSSubscription
+metadata:
+  name: demo-subscription
+  namespace: rhoai-deploy
+spec:
+  tenantRef:
+    name: demo-tenant
+  modelRefs:
+    - name: opt-125m
+  rateLimit:
+    tokens: 1000
+    window: 1m

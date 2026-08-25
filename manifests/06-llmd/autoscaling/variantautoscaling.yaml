@@ -1,0 +1,15 @@
+---
+# Technology Preview — Workload Variant Autoscaler (WVA). Scales the llm-d deployment
+# from inference-specific signals via a KEDA ScaledObject. Schema may change; validate
+# with `oc explain variantautoscaling` during workshop-act.
+apiVersion: llmd.ai/v1alpha1
+kind: VariantAutoscaling
+metadata:
+  name: opt-125m-wva
+  namespace: rhoai-deploy
+spec:
+  targetRef:
+    name: opt-125m-llmd
+    kind: LLMInferenceService
+  minReplicas: 1
+  maxReplicas: 4

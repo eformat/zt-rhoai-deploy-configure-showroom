@@ -1,0 +1,82 @@
+= Module 7: Observability
+:navtitle: Module 7: Observability
+:toc: macro
+:toclevels: 1
+:icons: font
+
+Operating served models requires visibility into performance and usage. In this module you enable
+User Workload Monitoring, view vLLM engine metrics, and inspect MaaS token-usage telemetry.
+
+== Learning objectives
+
+By the end of this module you will be able to:
+
+* Enable User Workload Monitoring and confirm `kserve_vllm` metrics are scraped
+* View vLLM engine metrics (token throughput, latency, KV-cache usage)
+* View MaaS telemetry (token usage per subscription)
+* Correlate an autoscaling event with the metrics that triggered it
+
+== Prerequisites
+
+* A served model producing metrics (xref:04-vllm-serving.adoc[Module 4])
+* Optionally MaaS traffic (xref:05-maas-governance.adoc[Module 5]) and an autoscaling event
+  (xref:06-llmd-scaling.adoc[Module 6])
+
+== Exercise 1: Enable User Workload Monitoring
+
+[source,bash,role="execute"]
+----
+oc apply -k manifests/07-observability/uwm
+----
+
+This enables User Workload Monitoring so the remapped `kserve_vllm` metrics are scraped.
+
+=== Verify
+
+* Query `kserve_vllm:num_requests_waiting` in the metrics console and confirm it returns a series:
++
+{metrics_console_url}
+
+== Exercise 2: View vLLM engine metrics
+
+. In the {ocp} console, go to *Observe -> Metrics* and run queries such as:
++
+[source,promql,role="execute"]
+----
+rate(kserve_vllm:prompt_tokens_total[5m])
+----
++
+[source,promql,role="execute"]
+----
+kserve_vllm:gpu_cache_usage_perc
+----
+
+=== Verify
+
+* A dashboard or Prometheus query returns data for the served `opt-125m` model.
+
+== Exercise 3: View MaaS telemetry
+
+. Open the MaaS Observability Dashboard in the {rhoai-short} dashboard after generating traffic in
+  Module 5.
+
+=== Verify
+
+* The dashboard shows per-subscription token consumption reflecting the Module 5 traffic.
+
+== Exercise 4 (Optional): Correlate an autoscaling event
+
+. Overlay the replica-count change from xref:06-llmd-scaling.adoc[Module 6] with
+  `kserve_vllm:num_requests_waiting` and KV-cache utilization over the same time window.
+
+=== Verify
+
+* You can point to the metric threshold crossing that triggered the scale-up.
+
+== Module summary
+
+* User Workload Monitoring is enabled and `kserve_vllm` metrics return data.
+* You viewed vLLM engine metrics and MaaS per-subscription token usage.
+* You correlated scaling with the signals that drove it.
+
+Continue to xref:08-conclusion.adoc[Conclusion].

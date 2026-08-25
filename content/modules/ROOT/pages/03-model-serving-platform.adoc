@@ -1,0 +1,108 @@
+= Module 3: Configuring the Model-Serving Platform
+:navtitle: Module 3: Model-Serving Platform
+:toc: macro
+:toclevels: 1
+:icons: font
+
+With {rhoai-short} installed, the model-serving platform must be prepared before models can be
+deployed. In this module you enable KServe single-model serving, make a vLLM serving runtime
+available, and create a storage connection KServe uses to pull model artifacts.
+
+== Learning objectives
+
+By the end of this module you will be able to:
+
+* Enable the KServe single-model serving platform for projects
+* Enable or duplicate a vLLM `ServingRuntime`
+* Create an S3/URI connection Secret with the correct connection-type annotation
+* Set a default cluster-wide deployment strategy
+
+== Prerequisites
+
+* {rhoai-short} is `Ready` (xref:01-install-connected.adoc[Module 1] or
+  xref:02-install-disconnected.adoc[Module 2] complete)
+* An S3-compatible endpoint or a URI source for model artifacts
+
+== Exercise 1: Create the workshop project
+
+[source,bash,role="execute",subs="attributes"]
+----
+oc new-project {project_name} 2>/dev/null || oc project {project_name}
+oc label namespace {project_name} opendatahub.io/dashboard=true --overwrite
+----
+
+=== Verify
+
+* `oc get project {project_name}` shows the project `Active`.
+
+== Exercise 2: Enable the single-model serving platform
+
+Single-model serving (KServe) is enabled cluster-wide in the {rhoai-short} dashboard.
+
+. In the {rhoai-short} dashboard, go to *Settings -> Cluster settings*.
+
+. Under *Model serving platforms*, ensure *Single-model serving platform* is enabled.
+
+Alternatively confirm KServe is managed in the DSC:
+
+[source,bash,role="execute"]
+----
+oc get datasciencecluster default-dsc -o jsonpath='{.spec.components.kserve.managementState}{"\n"}'
+----
+
+=== Verify
+
+* The single-model serving option is available when you create a model server in a project, and the
+  command above prints `Managed`.
+
+== Exercise 3: Make a vLLM serving runtime available
+
+. Apply the vLLM `ServingRuntime` template into the project (CPU variant):
++
+[source,bash,role="execute",subs="attributes"]
+----
+oc apply -k manifests/03-serving-platform/runtime -n {project_name}
+----
+
+=== Verify
+
+* The runtime appears in the project's serving-runtime list:
++
+[source,bash,role="execute",subs="attributes"]
+----
+oc get servingruntime -n {project_name}
+----
+
+== Exercise 4: Create the storage connection Secret
+
+KServe recognises a connection by the `opendatahub.io/connection-type-protocol` annotation. Create
+an S3 (or URI) connection Secret so a model can be auto-injected at deploy time.
+
+[source,bash,role="execute",subs="attributes"]
+----
+# Edit the placeholders in the template first (endpoint, bucket, keys), then apply:
+oc apply -f manifests/03-serving-platform/connection-s3.yaml -n {project_name}
+----
+
+=== Verify
+
+* The Secret carries the annotation and appears as a connection in the project:
++
+[source,bash,role="execute",subs="attributes"]
+----
+oc get secret aws-connection-models -n {project_name} \
+  -o jsonpath='{.metadata.annotations.opendatahub\.io/connection-type-protocol}{"\n"}'
+----
+
+== Exercise 5 (Optional): Set a default deployment strategy
+
+Choose a cluster-wide default deployment strategy for KServe deployments (Rolling update or
+Recreate) to match your update-availability requirements.
+
+== Module summary
+
+* KServe single-model serving is enabled.
+* A vLLM `ServingRuntime` is available in `{project_name}`.
+* A correctly annotated connection Secret is ready for KServe to pull model artifacts.
+
+The project is ready to deploy a model. Continue to xref:04-vllm-serving.adoc[Module 4: Serving with vLLM].

@@ -1,0 +1,16 @@
+---
+# Alternative to a full oc-mirror run: point the cluster at a Quay.io transparent
+# proxy pull-through cache (Quay configured with FEATURE_PROXY_CACHE: true).
+# Replace QUAY_PROXY_HOST/ORG with your cache coordinates.
+apiVersion: config.openshift.io/v1
+kind: ImageDigestMirrorSet
+metadata:
+  name: rhoai-quay-proxy-cache
+spec:
+  imageDigestMirrors:
+    - source: registry.redhat.io
+      mirrors:
+        - QUAY_PROXY_HOST/ORG/registry.redhat.io
+    - source: quay.io
+      mirrors:
+        - QUAY_PROXY_HOST/ORG/quay.io
