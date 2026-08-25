@@ -114,22 +114,24 @@ with a token rate limit, and a `MaaSAuthPolicy`.
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-API_KEY=$(oc get secret maas-apikey-demo -n {project_name} -o jsonpath='{.data.api-key}' | base64 -d)
-curl -sk {maas_gateway_url}/v1/completions \
-  -H "Authorization: Bearer ${API_KEY}" \
+export MAAS_GATEWAY={maas_gateway_url}
+export API_KEY=$(oc get secret maas-apikey-demo -n {project_name} -o jsonpath='{.data.api-key}' | base64 -d)
+curl -sk $MAAS_GATEWAY/v1/completions \
+  -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"model":"opt-125m","prompt":"hello","max_tokens":8}'
 ----
 
 == Exercise 5: Demonstrate rate limiting
 
-Send requests beyond the subscription's token limit and observe throttling.
+Send requests beyond the subscription's token limit and observe throttling. This reuses the
+`$MAAS_GATEWAY` and `$API_KEY` variables exported in the previous step.
 
-[source,bash,role="execute",subs="attributes"]
+[source,bash,role="execute"]
 ----
 for i in $(seq 1 50); do
-  curl -sk -o /dev/null -w "%{http_code}\n" {maas_gateway_url}/v1/completions \
-    -H "Authorization: Bearer ${API_KEY}" -H "Content-Type: application/json" \
+  curl -sk -o /dev/null -w "%{http_code}\n" $MAAS_GATEWAY/v1/completions \
+    -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
     -d '{"model":"opt-125m","prompt":"hi","max_tokens":32}'
 done | sort | uniq -c
 ----
