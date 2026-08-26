@@ -18,7 +18,8 @@ after each. Paths are referenced from the AsciiDoc pages and are relative to the
 
 - `02-disconnected/` — `REGISTRY_URL`, `QUAY_PROXY_HOST/ORG` (your mirror/cache).
 - `03-serving-platform/connection-s3.yaml` — S3 endpoint, bucket, and credentials (`CHANGE_ME`).
-- `05-maas/gateway/gateway.yaml` — the gateway hostname (cluster ingress domain).
+- `05-maas/gateway/{clusterip,loadbalancer}/` — `CLUSTER_DOMAIN` (cluster ingress domain), rendered
+  via `envsubst`. Use `clusterip/` for RHDP/bare-metal (no LoadBalancer); `loadbalancer/` for cloud.
 
 ## Technology Preview
 

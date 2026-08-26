@@ -100,22 +100,44 @@ oc apply -f manifests/05-maas/connectivity-link/kuadrant.yaml
 oc wait --for=condition=Ready kuadrant/kuadrant -n kuadrant-system --timeout=5m
 ----
 
-. Create the MaaS gateway. The gateway manifest carries a `$\{CLUSTER_DOMAIN}` placeholder,
-so it is applied through `envsubst` (not `oc apply -k`) — the gateway name, namespace, and
-`GatewayClass` are fixed values the MaaS controller expects and must not be changed:
+. Create the MaaS gateway. The manifests carry a `$\{CLUSTER_DOMAIN}` placeholder, so they are
+built with `oc kustomize` and rendered through `envsubst` before applying — the gateway name,
+namespace, and `GatewayClass` are fixed values the MaaS controller expects and must not be changed.
 +
+There are two modes; pick the one that matches your cluster:
++
+--
+*ClusterIP + Route (default — RHDP, bare-metal, on-prem, disconnected).* These clusters have no
+LoadBalancer provider, so the gateway `Service` is created as `ClusterIP` and exposed by an OpenShift
+`Route` that re-encrypts to it (the same pattern the built-in `data-science-gateway` uses):
+
 [source,bash,role="execute"]
 ----
 export CLUSTER_DOMAIN=$(oc get ingress.config cluster -o jsonpath='{.spec.domain}')
-envsubst < manifests/05-maas/gateway/gateway.yaml | oc apply -f -
+oc kustomize manifests/05-maas/gateway/clusterip | envsubst '${CLUSTER_DOMAIN}' | oc apply -f -
 oc wait --for=condition=Programmed gateway/maas-default-gateway \
   -n openshift-ingress --timeout=5m
 ----
+
+*LoadBalancer (cloud — AWS/ROSA/OSD, or on-prem with MetalLB).* Only use this if your cluster has a
+LoadBalancer provider; otherwise the gateway `Service` stays `<pending>` and the gateway never reaches
+`Programmed=True`:
+
+[source,bash,role="execute"]
+----
+export CLUSTER_DOMAIN=$(oc get ingress.config cluster -o jsonpath='{.spec.domain}')
+oc kustomize manifests/05-maas/gateway/loadbalancer | envsubst '${CLUSTER_DOMAIN}' | oc apply -f -
+oc wait --for=condition=Programmed gateway/maas-default-gateway \
+  -n openshift-ingress --timeout=5m
+----
+--
 
 === Verify
 
 * Both operator CSVs report `Succeeded`, `kuadrant/kuadrant` is `Ready`, and
   `gateway/maas-default-gateway` in `openshift-ingress` reports `Programmed=True`.
+* In ClusterIP mode, `oc get route maas-gateway-route -n openshift-ingress` is `Admitted`
+  and the `maas-gw-service-tls` secret has been provisioned by the service-ca operator.
 
 [TIP]
 ====

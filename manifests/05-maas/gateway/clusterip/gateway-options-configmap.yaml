@@ -1,0 +1,17 @@
+---
+# Tells the Gateway controller to create the gateway's Service as ClusterIP (no
+# external LoadBalancer) and to have the OpenShift service-ca operator provision a
+# serving certificate into the maas-gw-service-tls Secret. The Secret name here MUST
+# match the certificateRefs in gateway.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gw-options
+  namespace: openshift-ingress
+data:
+  service: |
+    metadata:
+      annotations:
+        service.beta.openshift.io/serving-cert-secret-name: "maas-gw-service-tls"
+    spec:
+      type: ClusterIP

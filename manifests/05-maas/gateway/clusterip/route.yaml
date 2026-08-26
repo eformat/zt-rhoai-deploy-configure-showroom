@@ -1,0 +1,27 @@
+---
+# Exposes the ClusterIP gateway Service externally. The Router terminates client TLS
+# with the cluster wildcard cert, then re-encrypts to the gateway Service using the
+# service-ca certificate. No destinationCACertificate is set: on these clusters the
+# Router already trusts the service-ca (the built-in data-science-gateway Route works
+# the same way). If your Router does NOT trust service-ca (some bare-metal builds),
+# add spec.tls.destinationCACertificate with the bundle from:
+#   oc get configmap signing-cabundle -n openshift-service-ca -o jsonpath='{.data.ca-bundle\.crt}'
+#
+# Carries a ${CLUSTER_DOMAIN} placeholder — rendered via envsubst by the apply command.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: maas-gateway-route
+  namespace: openshift-ingress
+spec:
+  host: "maas.${CLUSTER_DOMAIN}"
+  to:
+    kind: Service
+    # Service name is derived from <gateway-name>-<gatewayclass-name>.
+    name: maas-default-gateway-openshift-default
+    weight: 100
+  port:
+    targetPort: 443
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect

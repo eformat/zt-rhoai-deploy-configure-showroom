@@ -1,0 +1,13 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# ClusterIP gateway mode (default for RHDP/bare-metal — no LoadBalancer provider).
+# route.yaml carries a ${CLUSTER_DOMAIN} placeholder, so build with kustomize and
+# render through envsubst before applying:
+#   export CLUSTER_DOMAIN=$(oc get ingress.config cluster -o jsonpath='{.spec.domain}')
+#   oc kustomize manifests/05-maas/gateway/clusterip | envsubst '${CLUSTER_DOMAIN}' | oc apply -f -
+resources:
+  - gateway-options-configmap.yaml
+  - gateway.yaml
+  - route.yaml

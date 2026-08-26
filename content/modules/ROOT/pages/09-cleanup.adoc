@@ -40,8 +40,9 @@ Deleting the `DataScienceCluster` removes all {rhoai-short} components.
 
 [source,bash,role="execute"]
 ----
-# MaaS database and gateway
-oc delete -k manifests/05-maas/gateway --ignore-not-found
+# MaaS database and gateway (delete whichever gateway mode you applied)
+oc delete -k manifests/05-maas/gateway/clusterip --ignore-not-found
+oc delete -k manifests/05-maas/gateway/loadbalancer --ignore-not-found
 oc delete -k manifests/05-maas/postgres -n redhat-ods-applications --ignore-not-found
 
 # Serving-path + autoscaling operators (Leader Worker Set, JobSet, KEDA)
