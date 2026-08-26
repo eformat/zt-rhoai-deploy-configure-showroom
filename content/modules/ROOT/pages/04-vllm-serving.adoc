@@ -134,11 +134,17 @@ independent settings on the `InferenceService`, so you pick the level that fits 
 # KServe-managed edge route + the external URL it points at
 oc get route -n {project_name} -l inferenceservice-name=qwen25-05b
 oc get inferenceservice qwen25-05b -n {project_name} -o jsonpath='{.status.url}{"\n"}'
+----
 
+[source,bash,role="execute",subs="attributes"]
+----
 # The auth proxy runs alongside the vLLM container
 oc get pod -n {project_name} -l serving.kserve.io/inferenceservice=qwen25-05b \
   -o jsonpath='{.items[0].spec.containers[*].name}{"\n"}'   # -> kserve-container kube-rbac-proxy ...
+----
 
+[source,bash,role="execute",subs="attributes"]
+----
 # The identity + RBAC that make a token acceptable
 oc get sa qwen25-05b-caller -n {project_name}
 oc get rolebinding qwen25-05b-caller-inference-get -n {project_name}
@@ -179,6 +185,10 @@ traffic.
 [source,bash,role="execute",subs="attributes"]
 ----
 oc get inferenceservice qwen25-05b -n {project_name} -o yaml | less
+----
+
+[source,bash,role="execute",subs="attributes"]
+----
 oc get servingruntime -n {project_name} -o yaml | less
 ----
 
