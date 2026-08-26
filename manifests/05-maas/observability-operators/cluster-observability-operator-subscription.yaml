@@ -1,0 +1,29 @@
+---
+# Cluster Observability Operator (COO) — provides the MonitoringStack and Perses
+# backend that the RHOAI dashboard's "Observe & monitor -> Dashboard" (Perses-based)
+# renders from. Without it the tab loads but reports "Service Unavailable".
+#
+# COO only supports the AllNamespaces install mode, so the OperatorGroup is left with
+# an empty spec (global). Do NOT add targetNamespaces here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-cluster-observability-operator
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: openshift-cluster-observability-operator
+  namespace: openshift-cluster-observability-operator
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: cluster-observability-operator
+  namespace: openshift-cluster-observability-operator
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: cluster-observability-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
