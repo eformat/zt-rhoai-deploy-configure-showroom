@@ -75,33 +75,44 @@ in-cluster terminal, not the bastion.
 
 * The call returns HTTP 200 with a JSON body containing generated text in `choices[0].text`.
 
-== Exercise 3: External access (deferred to the MaaS gateway)
+== Exercise 3: Inspect the KServe-managed external route
 
-A KServe RawDeployment `InferenceService` only creates an in-cluster (headless) Service — it does
-*not* create an external route. You *could* expose it directly with an edge-terminated `Route`:
+By default a KServe RawDeployment `InferenceService` only creates an in-cluster (headless) Service.
+The `networking.kserve.io/visibility: exposed` label on the manifest (Exercise 1) tells KServe to
+also create and *own* an edge-terminated `Route` — exactly what the dashboard's *Make deployed
+models available through an external route* checkbox does. You never write the `Route` yourself, and
+KServe reconciles it with the `InferenceService`.
 
-[source,bash,subs="attributes"]
+. Confirm KServe created the route and that `.status.url` points at it:
++
+[source,bash,role="execute",subs="attributes"]
 ----
-# For reference only — do NOT run this in the workshop.
-oc create route edge qwen25-05b --service=qwen25-05b-predictor --port=http -n {project_name}
+oc get route -n {project_name} -l serving.kserve.io/inferenceservice=qwen25-05b
+oc get inferenceservice qwen25-05b -n {project_name} -o jsonpath='{.status.url}{"\n"}'
 ----
 
-We intentionally do *not* do this. Hand-rolling a per-model `Route` bypasses authentication and
-rate limiting, and it is not how models are exposed in the reference architecture. External,
-governed access is introduced in xref:05-maas-governance.adoc[Module 5], where the model is
-published through the *MaaS inference gateway* (a dedicated Gateway API gateway fronted by
-Red Hat Connectivity Link for API-key auth and rate limits).
+[WARNING]
+====
+This external route is *unauthenticated* — anyone who can reach the cluster's ingress can call the
+model. That is the same warning the dashboard shows when you tick the box. It is fine for a
+single-user workshop, but not for shared or production use.
+
+*Governed* external access — API-key authentication and token rate limiting — is what
+xref:05-maas-governance.adoc[Module 5] adds, by republishing the model through the *MaaS inference
+gateway* (a Gateway API gateway fronted by Red Hat Connectivity Link).
+====
 
 [NOTE]
 ====
 The cluster's `data-science-gateway` fronts the {rhoai-short} dashboard UI and OAuth login — it is
-*not* an inference gateway. MaaS provisions its own `maas-default-gateway` for model traffic.
+*not* an inference gateway. MaaS provisions its own `maas-default-gateway` for governed model
+traffic.
 ====
 
 === Verify
 
-* `oc get route -n {project_name}` shows no route for the model — external access is deferred to
-  Module 5.
+* `oc get route -n {project_name}` shows a KServe-owned route for `qwen25-05b`, and `.status.url` is
+  the external `https://` endpoint you queried in Exercise 2.
 
 == Exercise 4: Deploy the vLLM simulator (GPU-free smoke test)
 
