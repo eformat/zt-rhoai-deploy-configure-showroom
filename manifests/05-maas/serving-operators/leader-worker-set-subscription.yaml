@@ -9,6 +9,13 @@ kind: OperatorGroup
 metadata:
   name: openshift-lws-operator
   namespace: openshift-lws-operator
+spec:
+  # This operator only supports OwnNamespace/SingleNamespace install modes; an empty
+  # OperatorGroup defaults to AllNamespaces and the CSV fails with
+  # "AllNamespaces InstallModeType not supported". Target its own namespace.
+  targetNamespaces:
+    - openshift-lws-operator
+  upgradeStrategy: Default
 ---
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
