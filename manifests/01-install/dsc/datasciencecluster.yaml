@@ -3,6 +3,7 @@ apiVersion: datasciencecluster.opendatahub.io/v1
 kind: DataScienceCluster
 metadata:
   name: default-dsc
+  namespace: redhat-ods-operator
 spec:
   components:
     # Required by this workshop
@@ -10,11 +11,17 @@ spec:
       managementState: Managed
     kserve:
       managementState: Managed
-      defaultDeploymentMode: RawDeployment
-      serving:
-        managementState: Removed
-        name: knative-serving
-    # Enabled for completeness; not exercised on the CPU-only path
+      modelsAsService:
+        managementState: Managed
+      nim:
+        managementState: Managed
+      rawDeploymentServiceConfig: Headless
+    mlflowoperator:
+      managementState: Managed
+    aipipelines:
+      argoWorkflowsControllers:
+        managementState: Managed
+      managementState: Managed
     modelregistry:
       managementState: Managed
       registriesNamespace: rhoai-model-registries
@@ -23,11 +30,21 @@ spec:
     datasciencepipelines:
       managementState: Managed
     # Not needed for the workshop
+    trustyai:
+      eval:
+        lmeval:
+          permitCodeExecution: allow
+          permitOnline: allow
+      managementState: Removed
+    feastoperator:
+      managementState: Removed
     codeflare:
       managementState: Removed
     kueue:
       managementState: Removed
     ray:
+      managementState: Removed
+    trainer:
       managementState: Removed
     trainingoperator:
       managementState: Removed

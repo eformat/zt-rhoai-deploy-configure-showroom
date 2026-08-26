@@ -6,10 +6,14 @@ metadata:
 spec:
   applicationsNamespace: redhat-ods-applications
   monitoring:
+    alerting: {}
     managementState: Managed
-    namespace: redhat-ods-applications
-  serviceMesh:
-    managementState: Removed
+    metrics:
+      replicas: 1
+      storage:
+        retention: 90d
+        size: 5Gi
+    namespace: redhat-ods-monitoring
   trustedCABundle:
     managementState: Managed
     customCABundle: ""
