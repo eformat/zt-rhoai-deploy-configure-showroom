@@ -1,13 +1,13 @@
 ---
-# Publishes the opt-125m-maas LLMInferenceService through MaaS.
+# Publishes the qwen25-05b-maas LLMInferenceService through MaaS.
 # Schema (maas.opendatahub.io/v1alpha1): spec.modelRef is {kind, name} only — no namespace field,
 # so this MaaSModelRef must live in the SAME namespace as the LLMInferenceService it names
 # (both are applied into the workshop project with `-n <project>`).
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSModelRef
 metadata:
-  name: opt-125m
+  name: qwen25-05b
 spec:
   modelRef:
     kind: LLMInferenceService
-    name: opt-125m-maas
+    name: qwen25-05b-maas

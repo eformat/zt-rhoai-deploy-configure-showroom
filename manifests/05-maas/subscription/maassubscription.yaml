@@ -7,13 +7,13 @@
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSSubscription
 metadata:
-  name: opt-125m-demo
+  name: qwen25-05b-demo
 spec:
   owner:
     groups:
       - name: system:authenticated
   modelRefs:
-    - name: opt-125m
+    - name: qwen25-05b
       namespace: rhoai-deploy
       tokenRateLimits:
         - limit: 100

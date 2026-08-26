@@ -6,11 +6,11 @@
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSAuthPolicy
 metadata:
-  name: opt-125m-auth
+  name: qwen25-05b-auth
 spec:
   subjects:
     groups:
       - name: system:authenticated
   modelRefs:
-    - name: opt-125m
+    - name: qwen25-05b
       namespace: rhoai-deploy

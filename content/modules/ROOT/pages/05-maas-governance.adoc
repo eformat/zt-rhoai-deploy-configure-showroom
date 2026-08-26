@@ -144,14 +144,14 @@ or an `ExternalModel`, never a plain `InferenceService`.
 [source,bash,role="execute",subs="attributes"]
 ----
 oc apply -k manifests/05-maas/model -n {project_name}
-oc wait --for=condition=Ready llminferenceservice/opt-125m-maas -n {project_name} --timeout=15m
+oc wait --for=condition=Ready llminferenceservice/qwen25-05b-maas -n {project_name} --timeout=15m
 ----
 
 === Verify
 
-* `oc get llminferenceservice opt-125m-maas -n {project_name}` reports `Ready=True`; the model
-  loads from `hf://facebook/opt-125m` on the supported CPU vLLM image and attaches its route to
-  `maas-default-gateway`.
+* `oc get llminferenceservice qwen25-05b-maas -n {project_name}` reports `Ready=True`; the model
+  loads from `hf://Qwen/Qwen2.5-0.5B-Instruct` on the supported CPU vLLM image and attaches its
+  route to `maas-default-gateway`.
 
 == Exercise 5: Publish and govern the model
 
@@ -163,8 +163,8 @@ limit.
 oc apply -k manifests/05-maas/subscription -n {project_name}
 ----
 
-This creates a `MaaSModelRef` (pointing at the `opt-125m-maas` `LLMInferenceService`), a
-`MaaSSubscription` (`opt-125m-demo`, with a 100-token-per-minute rate limit granted to all
+This creates a `MaaSModelRef` (pointing at the `qwen25-05b-maas` `LLMInferenceService`), a
+`MaaSSubscription` (`qwen25-05b-demo`, with a 100-token-per-minute rate limit granted to all
 authenticated users), and a `MaaSAuthPolicy`.
 
 [NOTE]
@@ -195,7 +195,7 @@ export HOST="https://maas.${CLUSTER_DOMAIN}"
 export API_KEY=$(curl -sSk -X POST "${HOST}/maas-api/v1/api-keys" \
   -H "Authorization: Bearer $(oc whoami -t)" \
   -H "Content-Type: application/json" \
-  -d '{"name":"workshop-key","expiresIn":"1h","subscription":"opt-125m-demo"}' | jq -r .key)
+  -d '{"name":"workshop-key","expiresIn":"1h","subscription":"qwen25-05b-demo"}' | jq -r .key)
 echo "API key: ${API_KEY:0:12}..."
 ----
 

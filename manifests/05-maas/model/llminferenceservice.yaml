@@ -1,24 +1,24 @@
 ---
 # MaaS governs models served as an LLMInferenceService (the gateway-native KServe
 # serving object), NOT the plain InferenceService from Module 4 — MaaSModelRef.spec.modelRef.kind
-# only accepts LLMInferenceService or ExternalModel. This deploys opt-125m a second time as an
+# only accepts LLMInferenceService or ExternalModel. This deploys qwen25-05b a second time as an
 # LLMInferenceService wired to the MaaS gateway via spec.router.gateway.refs, so the subscription,
 # API key, and rate limit in the following exercise have a model to publish.
 #
-# The OpenAI model id is spec.model.name ("opt-125m"), kept stable so the Module 5/7 curl and
+# The OpenAI model id is spec.model.name ("qwen25-05b"), kept stable so the Module 5/7 curl and
 # playground calls resolve. Weights come from Hugging Face (hf://) — the reference-validated CPU
 # path; for a disconnected cluster swap the uri for the OCI modelcar
-# (oci://quay.io/redhat-ai-services/modelcar-catalog:opt-125m).
+# (oci://quay.io/redhat-ai-services/modelcar-catalog:qwen2.5-0.5b-instruct).
 apiVersion: serving.kserve.io/v1alpha1
 kind: LLMInferenceService
 metadata:
-  name: opt-125m-maas
+  name: qwen25-05b-maas
   labels:
     opendatahub.io/dashboard: "true"
 spec:
   model:
-    uri: hf://facebook/opt-125m
-    name: opt-125m
+    uri: hf://Qwen/Qwen2.5-0.5B-Instruct
+    name: qwen25-05b
   replicas: 1
   router:
     route: {}
@@ -32,16 +32,25 @@ spec:
       - name: main
         # Red Hat supported CPU vLLM image (same build the pre-installed vllm-cpu-x86 runtime uses).
         image: registry.redhat.io/rhaii/vllm-cpu-rhel9@sha256:0ec0f5ff9a5ff263f58db0cfb19e3d7eef24b94c2d8629fe5145f5a8747e28c9
+        # Bound vLLM's CPU memory footprint so 0.5B fits the limit below (Qwen2.5-0.5B
+        # otherwise profiles against the full 32K context and gets OOMKilled on CPU).
+        args:
+          - "--dtype=bfloat16"
+          - "--max-model-len=4096"
+          - "--max-num-seqs=8"
+          - "--enforce-eager"
         env:
           - name: VLLM_LOGGING_LEVEL
             value: INFO
+          - name: VLLM_CPU_KVCACHE_SPACE
+            value: "2"
         resources:
           requests:
             cpu: "1"
             memory: 8Gi
           limits:
             cpu: "2"
-            memory: 10Gi
+            memory: 12Gi
         livenessProbe:
           httpGet:
             path: /health
