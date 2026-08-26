@@ -5,23 +5,24 @@
 :icons: font
 
 With {rhoai-short} installed, the model-serving platform must be prepared before models can be
-deployed. In this module you enable KServe single-model serving, make a vLLM serving runtime
-available, and create a storage connection KServe uses to pull model artifacts.
+deployed. In this module you enable KServe single-model serving and make the pre-installed vLLM CPU
+runtime available in your project. Model weights are pulled from public OCI modelcar images, so no
+object storage is required — configuring an object-storage connection is shown as an optional step.
 
 == Learning objectives
 
 By the end of this module you will be able to:
 
 * Enable model serving (KServe single-model serving) for projects
-* Enable or duplicate a vLLM `ServingRuntime`
-* Create an S3/URI connection Secret with the correct connection-type annotation
+* Make the pre-installed vLLM CPU (x86) `ServingRuntime` available in your project
+* (Optional) Create an S3/URI connection Secret with the correct connection-type annotation
 * Set a default cluster-wide deployment strategy
 
 == Prerequisites
 
 * {rhoai-short} is `Ready` (xref:01-install-connected.adoc[Module 1] or
   xref:02-install-disconnected.adoc[Module 2] complete)
-* An S3-compatible endpoint or a URI source for model artifacts
+* No object storage required — model weights are pulled from public OCI modelcar images
 
 == Exercise 1: Create the workshop project
 
@@ -59,26 +60,45 @@ oc get datasciencecluster default-dsc -o jsonpath='{.spec.components.kserve.mana
 
 == Exercise 3: Make a vLLM serving runtime available
 
-. Apply the vLLM `ServingRuntime` template into the project (CPU variant):
-+
+{rhoai-short} {rhoai_version} ships a set of vLLM serving runtimes out of the box. On a CPU-only
+cluster the relevant one is *vLLM CPU (x86) ServingRuntime for KServe* (Technology Preview) — it is
+pre-installed and enabled, and it uses the Red Hat-supported, digest-pinned vLLM CPU image, so you
+do not build or ship your own runtime.
+
+You can confirm it under *Settings -> Serving runtimes* in the {rhoai-short} dashboard (toggle
+*Enabled*). It is delivered as a runtime *template*: deploying a model through the dashboard
+instantiates it into your project automatically. Because this workshop drives everything from the
+CLI, instantiate it into the project once, up front:
+
 [source,bash,role="execute",subs="attributes"]
 ----
-oc apply -k manifests/03-serving-platform/runtime -n {project_name}
+oc process -n redhat-ods-applications vllm-cpu-x86-runtime-template \
+  | oc apply -n {project_name} -f -
 ----
 
 === Verify
 
-* The runtime appears in the project's serving-runtime list:
+* The `vllm-cpu-x86-runtime` `ServingRuntime` now exists in the project:
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-oc get servingruntime -n {project_name}
+oc get servingruntime vllm-cpu-x86-runtime -n {project_name}
 ----
 
-== Exercise 4: Create the storage connection Secret
+== Exercise 4 (Optional): Create a storage connection Secret
 
-KServe recognises a connection by the `opendatahub.io/connection-type-protocol` annotation. Create
-an S3 (or URI) connection Secret so a model can be auto-injected at deploy time.
+[NOTE]
+====
+This workshop loads all model weights from *OCI modelcar images* (`oci://...`), so *no object
+storage and no connection Secret are required* to complete it. This exercise is included only to
+show how you would stage weights in S3-compatible object storage instead. Skip it if your cluster
+has no S3 endpoint.
+====
+
+KServe recognises a connection by the `opendatahub.io/connection-type-protocol` annotation. If you
+were serving weights from object storage, you would create an S3 (or URI) connection Secret so the
+model could be auto-injected at deploy time, then point the `InferenceService` `storageUri` at an
+`s3://` path instead of the `oci://` modelcar.
 
 [source,bash,role="execute",subs="attributes"]
 ----
@@ -105,8 +125,8 @@ to match your update-availability requirements.
 == Module summary
 
 * KServe single-model serving is enabled.
-* A vLLM `ServingRuntime` is available in `{project_name}`.
-* A correctly annotated connection Secret is ready for KServe to pull model artifacts.
+* The pre-installed `vllm-cpu-x86-runtime` `ServingRuntime` is available in `{project_name}`.
+* Model weights load from OCI modelcar images; an object-storage connection is optional.
 
 == References
 

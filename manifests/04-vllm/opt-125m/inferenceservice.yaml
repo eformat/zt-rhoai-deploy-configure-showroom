@@ -18,7 +18,7 @@ spec:
     model:
       modelFormat:
         name: vLLM
-      runtime: vllm-cpu-runtime
+      runtime: vllm-cpu-x86-runtime
       storageUri: "oci://quay.io/redhat-ai-services/modelcar-catalog:opt-125m"
       resources:
         requests:
