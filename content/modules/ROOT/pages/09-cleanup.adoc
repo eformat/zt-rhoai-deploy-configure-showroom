@@ -15,9 +15,9 @@ dependencies are torn down cleanly.
 oc delete -k manifests/06-llmd/autoscaling -n {project_name} --ignore-not-found
 oc delete -k manifests/06-llmd/service -n {project_name} --ignore-not-found
 
-# Module 5 — MaaS
+# Module 5 — MaaS (subscription manifests pin their own namespaces, so no -n flag)
 oc delete -k manifests/05-maas/telemetry --ignore-not-found
-oc delete -k manifests/05-maas/subscription -n {project_name} --ignore-not-found
+oc delete -k manifests/05-maas/subscription --ignore-not-found
 
 # Module 4 — vLLM model
 oc delete -k manifests/04-vllm/qwen25-05b -n {project_name} --ignore-not-found
@@ -44,6 +44,11 @@ Deleting the `DataScienceCluster` removes all {rhoai-short} components.
 oc delete -k manifests/05-maas/gateway/clusterip --ignore-not-found
 oc delete -k manifests/05-maas/gateway/loadbalancer --ignore-not-found
 oc delete -k manifests/05-maas/postgres -n redhat-ods-applications --ignore-not-found
+
+# Authorino service-CA trust (revert the volume mount, then remove the injected ConfigMaps)
+oc patch authorino authorino -n kuadrant-system --type=merge \
+  -p '{"spec":{"volumes":{"items":[]}}}' --ignore-not-found
+oc delete -f manifests/05-maas/connectivity-link/authorino-service-ca-trust.yaml --ignore-not-found
 
 # Serving-path + autoscaling operators (Leader Worker Set, JobSet, KEDA)
 oc delete -f manifests/05-maas/serving-operators/operator-config.yaml --ignore-not-found

@@ -1,17 +1,26 @@
 ---
 # Subscription with a token rate limit that drives HTTP 429 on excess.
 # Schema (maas.opendatahub.io/v1alpha1): modelRefs[] point at the MaaSModelRef by {name, namespace}
-# (both required) — namespace must match where the MaaSModelRef lives. It cannot be templated by
-# `kustomize -n`, so it is pinned to the workshop project (rhoai-deploy); change it here if you
-# rename the project. owner.groups grants the subscription to all authenticated users.
+# (both required) — namespace must match where the MaaSModelRef lives (the workshop project),
+# pinned literally below since these manifests are not templated.
+#
+# THIS OBJECT lives in `models-as-a-service`, NOT the workshop project: maas-api only reads
+# subscriptions from the namespace named by its MAAS_SUBSCRIPTION_NAMESPACE env (models-as-a-service).
+# A subscription applied into any other namespace is silently ignored and `/maas-api/v1/models`
+# returns an empty catalog.
+#
+# owner.groups grants the subscription to `system:authenticated:oauth` — the group the OpenShift
+# OAuth/OIDC identity actually presents to Authorino. Plain `system:authenticated` never matches the
+# generated AuthPolicy's `allowed_groups`, so the request is denied (403).
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSSubscription
 metadata:
   name: qwen25-05b-demo
+  namespace: models-as-a-service
 spec:
   owner:
     groups:
-      - name: system:authenticated
+      - name: system:authenticated:oauth
   modelRefs:
     - name: qwen25-05b
       namespace: rhoai-deploy

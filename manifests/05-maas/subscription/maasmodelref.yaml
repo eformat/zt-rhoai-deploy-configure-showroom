@@ -1,12 +1,14 @@
 ---
 # Publishes the qwen25-05b-maas LLMInferenceService through MaaS.
 # Schema (maas.opendatahub.io/v1alpha1): spec.modelRef is {kind, name} only — no namespace field,
-# so this MaaSModelRef must live in the SAME namespace as the LLMInferenceService it names
-# (both are applied into the workshop project with `-n <project>`).
+# so this MaaSModelRef must live in the SAME namespace as the LLMInferenceService it names — the
+# workshop project. Pinned literally here (like the modelRefs in the subscription/authpolicy) since
+# these manifests are not templated; change all four if you rename the project.
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSModelRef
 metadata:
   name: qwen25-05b
+  namespace: rhoai-deploy
 spec:
   modelRef:
     kind: LLMInferenceService

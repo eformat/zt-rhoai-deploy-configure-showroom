@@ -43,13 +43,26 @@ spec:
           - name: VLLM_LOGGING_LEVEL
             value: INFO
           - name: VLLM_CPU_KVCACHE_SPACE
-            value: "2"
+            value: "2"               # GiB reserved for the CPU KV cache
+          # The container sees ALL host cores (e.g. 32) but the cgroup CFS quota is `limits.cpu`.
+          # Without these, vLLM/OpenMP spawns one thread per host core, thrashes over the 4 cores
+          # it actually has, and gets CPU-throttled to ~0.1 tok/s (a 16-token reply then takes
+          # minutes and trips the gateway's route timeout -> 504/500). Pin the thread pool to the
+          # allocation (matches the Module 4 InferenceService). Keep OMP_NUM_THREADS == limits.cpu.
+          - name: OMP_NUM_THREADS
+            value: "4"
+          - name: VLLM_CPU_OMP_THREADS_BIND
+            value: "0-3"
         resources:
+          # request stays low so this second copy of the model still schedules on a busy
+          # single-node cluster; the limit is 4 so the CFS quota matches OMP_NUM_THREADS above
+          # (throughput is governed by the limit, not the request). With this, a short chat
+          # completion returns in ~2s instead of timing out.
           requests:
             cpu: "1"
             memory: 8Gi
           limits:
-            cpu: "2"
+            cpu: "4"
             memory: 12Gi
         livenessProbe:
           httpGet:

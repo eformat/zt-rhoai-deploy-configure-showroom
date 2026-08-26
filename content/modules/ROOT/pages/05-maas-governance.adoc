@@ -100,6 +100,31 @@ oc apply -f manifests/05-maas/connectivity-link/kuadrant.yaml
 oc wait --for=condition=Ready kuadrant/kuadrant -n kuadrant-system --timeout=5m
 ----
 
+. Let Authorino trust the cluster service CA. When the Kuadrant CR becomes `Ready` the operator
+creates the default `Authorino` instance. Its MaaS authorization calls back to `maas-api` over the
+service's HTTPS port, whose certificate is signed by the OpenShift *service-serving* CA — which the
+Authorino image does not trust by default. Without this, the subscription check fails TLS
+verification, every request is denied, and `+/maas-api/v1/models+` comes back empty. Create the two
+auto-injected CA `ConfigMaps` and mount them into Authorino's certificate directory:
++
+[source,bash,role="execute"]
+----
+oc apply -f manifests/05-maas/connectivity-link/authorino-service-ca-trust.yaml
+# Give the service-ca / network operators a moment to populate the ConfigMaps, then mount them.
+oc wait --for=jsonpath='{.data.service-ca\.crt}' configmap/authorino-service-ca \
+  -n kuadrant-system --timeout=2m
+oc patch authorino authorino -n kuadrant-system --type=merge -p '{"spec":{"volumes":{"items":[{"name":"ca-trust","mountPath":"/etc/pki/tls/certs","configMaps":["authorino-trusted-ca-bundle","authorino-service-ca"]}]}}}'
+oc rollout status deploy/authorino -n kuadrant-system --timeout=5m
+----
++
+[NOTE]
+====
+Leave Authorino's `listener` and `oidcServer` TLS *disabled* (the operator default). The Kuadrant
+`ext_authz` filter talks to Authorino over plaintext gRPC on `:50051`; enabling the TLS listener
+breaks that path and turns every authorized request into a `500`. This step only adds *trusted CA
+material*, it does not enable a TLS listener.
+====
+
 . Create the MaaS gateway. The manifests carry a `$\{CLUSTER_DOMAIN}` placeholder, so they are
 built with `oc kustomize` and rendered through `envsubst` before applying — the gateway name,
 namespace, and `GatewayClass` are fixed values the MaaS controller expects and must not be changed.
@@ -347,12 +372,23 @@ limit.
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-oc apply -k manifests/05-maas/subscription -n {project_name}
+oc apply -k manifests/05-maas/subscription
 ----
 +
 This creates a `MaaSModelRef` (pointing at the `qwen25-05b-maas` `LLMInferenceService`), a
 `MaaSSubscription` (`qwen25-05b-demo`, with a 100-token-per-minute rate limit granted to all
 authenticated users), and a `MaaSAuthPolicy`.
++
+[NOTE]
+====
+Each manifest pins its own namespace, so the command has *no* `-n` flag. The `MaaSModelRef` lands
+in the workshop project (`{project_name}`, where the `LLMInferenceService` lives), while the
+`MaaSSubscription` and `MaaSAuthPolicy` land in `models-as-a-service` — the only namespace
+`maas-api` reads subscriptions from (its `MAAS_SUBSCRIPTION_NAMESPACE`). A subscription applied
+anywhere else is silently ignored and `/maas-api/v1/models` returns an empty catalog. Both grant
+access to the `system:authenticated:oauth` group — the group the OpenShift OAuth/OIDC identity
+actually presents; plain `system:authenticated` never matches and every call is denied (403).
+====
 
 . Wire up per-subscription telemetry so gateway token usage is broken out by subscription. Both
   CRs target `maas-default-gateway` and build on the `MaaSAuthPolicy` you just created, so they are
@@ -406,10 +442,14 @@ echo "API key: ${API_KEY:0:12}..."
 +
 [source,bash,role="execute"]
 ----
-export MODEL_NAME=$(curl -sSk "${HOST}/maas-api/v1/models" \
-  -H "Authorization: Bearer ${API_KEY}" | jq -re '[.data[] | select(.ready==true)][0].id')
-echo "Model: $MODEL_NAME"
-curl -sSk "${HOST}/v1/chat/completions" \
+MODEL_JSON=$(curl -sSk "${HOST}/maas-api/v1/models" -H "Authorization: Bearer ${API_KEY}")
+export MODEL_NAME=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.ready==true)][0].id')
+# The catalog also returns each model's gateway path (/<namespace>/<LLMInferenceService>). Chat
+# requests go to that path, NOT the bare /v1/chat/completions — the gateway routes by prefix and
+# a bare path 404s.
+export MODEL_PATH=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.ready==true)][0].url' | sed -E 's#^https?://[^/]+##')
+echo "Model: $MODEL_NAME  ->  ${HOST}${MODEL_PATH}"
+curl -sSk "${HOST}${MODEL_PATH}/v1/chat/completions" \
   -H "Authorization: Bearer ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d "{\"model\":\"${MODEL_NAME}\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}],\"max_tokens\":50}" | jq .
@@ -423,12 +463,12 @@ curl -sSk "${HOST}/v1/chat/completions" \
 == Exercise 7: Demonstrate rate limiting
 
 Send requests beyond the subscription's token limit and observe throttling. This reuses the
-`$HOST`, `$API_KEY`, and `$MODEL_NAME` variables exported in the previous step.
+`$HOST`, `$API_KEY`, `$MODEL_NAME`, and `$MODEL_PATH` variables exported in the previous step.
 
 [source,bash,role="execute"]
 ----
 for i in $(seq 1 16); do
-  curl -sSk -o /dev/null -w "%{http_code}\n" "${HOST}/v1/chat/completions" \
+  curl -sSk -o /dev/null -w "%{http_code}\n" "${HOST}${MODEL_PATH}/v1/chat/completions" \
     -H "Authorization: Bearer ${API_KEY}" -H "Content-Type: application/json" \
     -d "{\"model\":\"${MODEL_NAME}\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":32}"
 done | sort | uniq -c
