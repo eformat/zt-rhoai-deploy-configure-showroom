@@ -1,15 +1,20 @@
 ---
-# Technology Preview — subscription with a token rate limit that drives HTTP 429 on excess.
-apiVersion: maas.redhat.com/v1alpha1
+# Subscription with a token rate limit that drives HTTP 429 on excess.
+# Schema (maas.opendatahub.io/v1alpha1): modelRefs[] point at the MaaSModelRef by {name, namespace}
+# (both required) — namespace must match where the MaaSModelRef lives. It cannot be templated by
+# `kustomize -n`, so it is pinned to the workshop project (rhoai-deploy); change it here if you
+# rename the project. owner.groups grants the subscription to all authenticated users.
+apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSSubscription
 metadata:
-  name: demo-subscription
-  namespace: rhoai-deploy
+  name: opt-125m-demo
 spec:
-  tenantRef:
-    name: demo-tenant
+  owner:
+    groups:
+      - name: system:authenticated
   modelRefs:
-    - name: qwen25-05b
-  rateLimit:
-    tokens: 1000
-    window: 1m
+    - name: opt-125m
+      namespace: rhoai-deploy
+      tokenRateLimits:
+        - limit: 100
+          window: 1m

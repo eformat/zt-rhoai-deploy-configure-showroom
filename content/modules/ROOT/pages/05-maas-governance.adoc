@@ -20,14 +20,15 @@ By the end of this module you will be able to:
 
 * Enable {maas} in the `DataScienceCluster` and dashboard
 * Provision the MaaS PostgreSQL database and `maas-db-config` secret
-* Install {rhcl}, register Kuadrant, and bootstrap gateway TLS
-* Create MaaS custom resources (`Tenant`, `MaaSModelRef`, `MaaSSubscription`, `MaaSAuthPolicy`)
-* Demonstrate token rate limiting (HTTP 429)
+* Install {rhcl}, register Kuadrant, and bootstrap the gateway
+* Deploy a model as an `LLMInferenceService` attached to the MaaS gateway
+* Publish and govern it with `MaaSModelRef`, `MaaSSubscription`, and `MaaSAuthPolicy` custom resources
+* Mint an API key, call the model through the gateway, and demonstrate token rate limiting (HTTP 429)
 
 == Prerequisites
 
-* A served model (xref:04-vllm-serving.adoc[Module 4] complete)
-* PostgreSQL 14+ reachable; {rhcl} and cert-manager installable
+* xref:04-vllm-serving.adoc[Module 4] complete (KServe single-model serving working)
+* Cluster-admin to enable {maas} in the `DataScienceCluster`; {rhcl} and cert-manager installable
 
 == Exercise 1: Provision PostgreSQL and secrets
 
@@ -133,43 +134,100 @@ This sets `spec.components.kserve.modelsAsService.managementState: Managed` in t
 * The *Models as a Service* view appears in the {rhoai-short} dashboard and the MaaS components
   become ready.
 
-== Exercise 4: Create the MaaS custom resources
+== Exercise 4: Deploy the model as an LLMInferenceService
 
-Publish a model and govern it with a subscription and a token rate limit.
+MaaS governs models served as an `LLMInferenceService` — the gateway-native KServe serving object
+— so publish `{cpu_model}` again in that form, wired to the MaaS gateway. The plain
+`InferenceService` from Module 4 stays as-is; `MaaSModelRef` only accepts an `LLMInferenceService`
+or an `ExternalModel`, never a plain `InferenceService`.
+
+[source,bash,role="execute",subs="attributes"]
+----
+oc apply -k manifests/05-maas/model -n {project_name}
+oc wait --for=condition=Ready llminferenceservice/opt-125m-maas -n {project_name} --timeout=15m
+----
+
+=== Verify
+
+* `oc get llminferenceservice opt-125m-maas -n {project_name}` reports `Ready=True`; the model
+  loads from `hf://facebook/opt-125m` on the supported CPU vLLM image and attaches its route to
+  `maas-default-gateway`.
+
+== Exercise 5: Publish and govern the model
+
+Publish the `LLMInferenceService` through MaaS and govern it with a subscription and a token rate
+limit.
 
 [source,bash,role="execute",subs="attributes"]
 ----
 oc apply -k manifests/05-maas/subscription -n {project_name}
 ----
 
-This creates a `Tenant`, a `MaaSModelRef` (pointing at the `qwen25-05b` model), a `MaaSSubscription`
-with a token rate limit, and a `MaaSAuthPolicy`.
+This creates a `MaaSModelRef` (pointing at the `opt-125m-maas` `LLMInferenceService`), a
+`MaaSSubscription` (`opt-125m-demo`, with a 100-token-per-minute rate limit granted to all
+authenticated users), and a `MaaSAuthPolicy`.
+
+[NOTE]
+====
+The singleton `Tenant` (`default-tenant`) is bootstrapped automatically by the `maas-controller`
+once MaaS is Managed and {rhcl} is installed — the workshop does not create one. If the controller
+is crash-looping, it is almost always waiting on the Kuadrant `TokenRateLimitPolicy` CRD from
+Exercise 2; confirm that step completed.
+====
 
 === Verify
 
-* An issued API key reaches the model through the gateway:
+* `oc get maasmodelref,maassubscription,maasauthpolicy -n {project_name}` shows all three, and the
+  model appears in the *Models as a Service* view in the dashboard.
+
+== Exercise 6: Mint an API key and call the model
+
+MaaS issues API keys through the `maas-api` endpoint, not as a Kubernetes Secret. Authenticate with
+your OpenShift token to mint a key bound to the subscription, then call the model through the
+gateway.
+
+. Resolve the gateway host and mint an API key (returned only once):
 +
-[source,bash,role="execute",subs="attributes"]
+[source,bash,role="execute"]
 ----
-export MAAS_GATEWAY={maas_gateway_url}
-export API_KEY=$(oc get secret maas-apikey-demo -n {project_name} -o jsonpath='{.data.api-key}' | base64 -d)
-curl -sk $MAAS_GATEWAY/v1/completions \
-  -H "Authorization: Bearer $API_KEY" \
+export CLUSTER_DOMAIN=$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+export HOST="https://maas.${CLUSTER_DOMAIN}"
+export API_KEY=$(curl -sSk -X POST "${HOST}/maas-api/v1/api-keys" \
+  -H "Authorization: Bearer $(oc whoami -t)" \
   -H "Content-Type: application/json" \
-  -d '{"model":"qwen25-05b","prompt":"hello","max_tokens":8}'
+  -d '{"name":"workshop-key","expiresIn":"1h","subscription":"opt-125m-demo"}' | jq -r .key)
+echo "API key: ${API_KEY:0:12}..."
 ----
 
-== Exercise 5: Demonstrate rate limiting
+. Discover the published model id and call the OpenAI-compatible chat endpoint:
++
+[source,bash,role="execute"]
+----
+export MODEL_NAME=$(curl -sSk "${HOST}/maas-api/v1/models" \
+  -H "Authorization: Bearer ${API_KEY}" | jq -re '[.data[] | select(.ready==true)][0].id')
+echo "Model: $MODEL_NAME"
+curl -sSk "${HOST}/v1/chat/completions" \
+  -H "Authorization: Bearer ${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d "{\"model\":\"${MODEL_NAME}\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}],\"max_tokens\":50}" | jq
+----
+
+=== Verify
+
+* The chat request returns *HTTP 200* with a completion. A request with no `Authorization` header
+  returns *HTTP 401*.
+
+== Exercise 7: Demonstrate rate limiting
 
 Send requests beyond the subscription's token limit and observe throttling. This reuses the
-`$MAAS_GATEWAY` and `$API_KEY` variables exported in the previous step.
+`$HOST`, `$API_KEY`, and `$MODEL_NAME` variables exported in the previous step.
 
 [source,bash,role="execute"]
 ----
-for i in $(seq 1 50); do
-  curl -sk -o /dev/null -w "%{http_code}\n" $MAAS_GATEWAY/v1/completions \
-    -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
-    -d '{"model":"qwen25-05b","prompt":"hi","max_tokens":32}'
+for i in $(seq 1 16); do
+  curl -sSk -o /dev/null -w "%{http_code}\n" "${HOST}/v1/chat/completions" \
+    -H "Authorization: Bearer ${API_KEY}" -H "Content-Type: application/json" \
+    -d "{\"model\":\"${MODEL_NAME}\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":32}"
 done | sort | uniq -c
 ----
 
@@ -177,7 +235,7 @@ done | sort | uniq -c
 
 * Requests exceeding the subscription limit return *HTTP 429*.
 
-== Exercise 6 (Optional): Test in the Gen AI playground
+== Exercise 8 (Optional): Test in the Gen AI playground
 
 . In the {rhoai-short} dashboard, open the *Gen AI playground* and select the published model.
 
@@ -187,8 +245,9 @@ done | sort | uniq -c
 
 == Module summary
 
-* You enabled {maas} (Technology Preview) end-to-end: database, gateway, DSC/dashboard, and CRs.
-* An API key reaches the model, and requests over quota return 429.
+* You enabled {maas} (Technology Preview) end-to-end: database, gateway, DSC/dashboard, an
+  `LLMInferenceService`, and the governance CRs.
+* A minted API key reaches the model through the gateway, and requests over quota return 429.
 
 == References
 

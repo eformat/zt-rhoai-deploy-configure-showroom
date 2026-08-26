@@ -21,10 +21,21 @@ spec:
         name: vLLM
       runtime: vllm-cpu-x86-runtime
       storageUri: "oci://quay.io/redhat-ai-services/modelcar-catalog:qwen2.5-0.5b-instruct"
+      # Bound vLLM's CPU memory footprint so it fits the limit below. Without these,
+      # vLLM profiles against the model's full 32K context and a large batch and gets
+      # OOMKilled on a CPU node.
+      args:
+        - "--dtype=bfloat16"       # half the weight footprint vs float32
+        - "--max-model-len=4096"   # cap context (default would be 32768)
+        - "--max-num-seqs=8"       # cap concurrent sequences (default 256)
+        - "--enforce-eager"        # skip graph capture / extra buffers
+      env:
+        - name: VLLM_CPU_KVCACHE_SPACE
+          value: "2"               # GiB reserved for the CPU KV cache
       resources:
         requests:
           cpu: "2"
-          memory: 8Gi
+          memory: 6Gi
         limits:
           cpu: "4"
           memory: 12Gi

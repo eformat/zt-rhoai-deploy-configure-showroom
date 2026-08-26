@@ -1,10 +1,19 @@
 ---
-# Technology Preview — MaaS custom resources. Schemas may change across releases;
-# validate against your cluster's CRDs (oc explain tenant.maas...) during workshop-act.
-apiVersion: maas.redhat.com/v1alpha1
+# Reference/fallback ONLY — not applied by kustomization.yaml.
+#
+# The maas-controller bootstraps the singleton Tenant automatically once modelsAsService is Managed
+# and Red Hat Connectivity Link is installed (the controller crash-loops until the Kuadrant
+# TokenRateLimitPolicy CRD exists, so the tenant does not appear until Exercise 2 completes).
+# The name must be `default-tenant` (CEL-enforced singleton). Apply this manually only if no
+# default-tenant appears after the controller reaches Ready:
+#   oc get tenant default-tenant -n models-as-a-service
+#   oc apply -f manifests/05-maas/subscription/tenant.yaml   # only if the above is empty
+apiVersion: maas.opendatahub.io/v1alpha1
 kind: Tenant
 metadata:
-  name: demo-tenant
-  namespace: rhoai-deploy
+  name: default-tenant
+  namespace: models-as-a-service
 spec:
-  displayName: "Demo Tenant"
+  gatewayRef:
+    name: maas-default-gateway
+    namespace: openshift-ingress

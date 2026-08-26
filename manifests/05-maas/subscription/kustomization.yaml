@@ -2,10 +2,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Technology Preview MaaS resources. The issued API key lands in a Secret
-# (maas-apikey-demo) that the module reads to call the gateway.
+# Technology Preview MaaS governance resources, applied into the workshop project.
+# The Tenant (default-tenant) is bootstrapped by the maas-controller once modelsAsService is
+# Managed and Connectivity Link is installed — the workshop does NOT create one (tenant.yaml is
+# kept as a reference/fallback only, and is intentionally excluded here).
 resources:
-  - tenant.yaml
   - maasmodelref.yaml
   - maassubscription.yaml
   - maasauthpolicy.yaml

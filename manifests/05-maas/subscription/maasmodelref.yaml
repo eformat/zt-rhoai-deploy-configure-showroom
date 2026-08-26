@@ -1,14 +1,13 @@
 ---
-# Technology Preview — publishes the qwen25-05b InferenceService through MaaS.
-apiVersion: maas.redhat.com/v1alpha1
+# Publishes the opt-125m-maas LLMInferenceService through MaaS.
+# Schema (maas.opendatahub.io/v1alpha1): spec.modelRef is {kind, name} only — no namespace field,
+# so this MaaSModelRef must live in the SAME namespace as the LLMInferenceService it names
+# (both are applied into the workshop project with `-n <project>`).
+apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSModelRef
 metadata:
-  name: qwen25-05b
-  namespace: rhoai-deploy
+  name: opt-125m
 spec:
-  tenantRef:
-    name: demo-tenant
-  inferenceServiceRef:
-    name: qwen25-05b
-    namespace: rhoai-deploy
-  displayName: "Qwen2.5-0.5B-Instruct"
+  modelRef:
+    kind: LLMInferenceService
+    name: opt-125m-maas

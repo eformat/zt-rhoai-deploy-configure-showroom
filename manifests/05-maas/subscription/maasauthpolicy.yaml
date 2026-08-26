@@ -1,13 +1,16 @@
 ---
-# Technology Preview — binds API-key auth (Authorino) to the subscription/gateway.
-apiVersion: maas.redhat.com/v1alpha1
+# Binds API-key auth (Authorino, via Connectivity Link) to the published model.
+# Schema (maas.opendatahub.io/v1alpha1): modelRefs[] reference the MaaSModelRef by {name, namespace}
+# (namespace pinned to the workshop project, same as the subscription); subjects.groups grants
+# access to all authenticated users.
+apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSAuthPolicy
 metadata:
-  name: demo-authpolicy
-  namespace: rhoai-deploy
+  name: opt-125m-auth
 spec:
-  tenantRef:
-    name: demo-tenant
-  subscriptionRef:
-    name: demo-subscription
-  authType: apiKey
+  subjects:
+    groups:
+      - name: system:authenticated
+  modelRefs:
+    - name: opt-125m
+      namespace: rhoai-deploy
