@@ -40,6 +40,7 @@ spec:
         - "--dtype=bfloat16"       # half the weight footprint vs float32
         - "--max-model-len=4096"   # cap context (default would be 32768)
         - "--max-num-seqs=8"       # cap concurrent sequences (default 256)
+        - "--enable-force-include-usage"  # always emit token-usage in responses (MaaS telemetry)
         - "--enforce-eager"        # skip graph capture / extra buffers
       env:
         - name: VLLM_CPU_KVCACHE_SPACE

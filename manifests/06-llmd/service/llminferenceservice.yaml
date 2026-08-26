@@ -27,6 +27,8 @@ spec:
       - name: main
         # Red Hat supported CPU vLLM image (same build the pre-installed vllm-cpu-x86 runtime uses).
         image: registry.redhat.io/rhaii/vllm-cpu-rhel9@sha256:0ec0f5ff9a5ff263f58db0cfb19e3d7eef24b94c2d8629fe5145f5a8747e28c9
+        args:
+          - "--enable-force-include-usage"  # always emit token-usage in responses (MaaS telemetry)
         resources:
           requests:
             cpu: "2"
