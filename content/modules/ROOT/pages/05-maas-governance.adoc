@@ -60,23 +60,58 @@ oc rollout status deploy/postgres -n redhat-ods-applications
 
 == Exercise 2: Install Red Hat Connectivity Link and bootstrap the gateway
 
-. Install {rhcl} and register Kuadrant:
+The order matters here. The Kuadrant custom resource and the gateway both depend on
+resources that do not exist until the operators have finished installing, so each step
+below waits for its prerequisite before moving on.
+
+. Install the {rhcl} and cert-manager operators (subscriptions only):
 +
 [source,bash,role="execute"]
 ----
 oc apply -k manifests/05-maas/connectivity-link
 ----
 
-. Bootstrap gateway TLS and the MaaS gateway:
+. Wait for both operator CSVs to reach `Succeeded` — the Kuadrant CRD is not registered
+until the {rhcl} operator install completes:
 +
 [source,bash,role="execute"]
 ----
-oc apply -k manifests/05-maas/gateway
+oc wait --for=jsonpath='{.status.state}'=AtLatestKnown \
+  subscription/rhcl-operator -n openshift-operators --timeout=5m
+oc wait --for=jsonpath='{.status.phase}'=Succeeded \
+  csv/$(oc get subscription rhcl-operator -n openshift-operators -o jsonpath='{.status.currentCSV}') \
+  -n openshift-operators --timeout=5m
+oc wait --for=jsonpath='{.status.state}'=AtLatestKnown \
+  subscription/openshift-cert-manager-operator -n cert-manager-operator --timeout=5m
+oc wait --for=jsonpath='{.status.phase}'=Succeeded \
+  csv/$(oc get subscription openshift-cert-manager-operator -n cert-manager-operator -o jsonpath='{.status.currentCSV}') \
+  -n cert-manager-operator --timeout=5m
+----
+
+. Register Kuadrant now that its CRD exists, and wait for it to become ready:
++
+[source,bash,role="execute"]
+----
+oc apply -f manifests/05-maas/connectivity-link/kuadrant.yaml
+oc wait --for=condition=Ready kuadrant/kuadrant -n kuadrant-system --timeout=5m
+----
+
+. Create the MaaS gateway. The gateway manifest carries a `${CLUSTER_DOMAIN}` placeholder,
+so it is applied through `envsubst` (not `oc apply -k`) — the gateway name, namespace, and
+`GatewayClass` are fixed values the MaaS controller expects and must not be changed:
++
+[source,bash,role="execute"]
+----
+export CLUSTER_DOMAIN=$(oc get ingress.config cluster -o jsonpath='{.spec.domain}')
+envsubst < manifests/05-maas/gateway/gateway.yaml | oc apply -f -
+oc wait --for=condition=Programmed gateway/maas-default-gateway \
+  -n openshift-ingress --timeout=5m
 ----
 
 === Verify
 
-* Both operator CSVs reach `Succeeded` and the MaaS API gateway route serves TLS.
+* Both operator CSVs report `Succeeded`, `kuadrant/kuadrant` is `Ready`, and
+  `gateway/maas-default-gateway` in `openshift-ingress` reports `Programmed=True`.
 
 == Exercise 3: Enable MaaS in the DSC and dashboard
 

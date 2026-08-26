@@ -2,8 +2,12 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Red Hat Connectivity Link (Kuadrant/Authorino) + cert-manager operators.
+# Red Hat Connectivity Link (Kuadrant/Authorino) + cert-manager operators ONLY.
+# kuadrant.yaml is intentionally NOT listed here: the Kuadrant CR
+# (kuadrant.io/v1beta1) can only be applied AFTER the RHCL operator CSV reaches
+# Succeeded and registers the CRD. Applying it in the same kustomize pass races
+# CRD registration and fails with "no matches for kind Kuadrant". Module 5
+# applies it separately once the CSVs are Succeeded.
 resources:
   - cert-manager-subscription.yaml
   - connectivity-link-subscription.yaml
-  - kuadrant.yaml

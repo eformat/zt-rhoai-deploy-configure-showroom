@@ -1,25 +1,48 @@
 ---
-# MaaS API gateway (Gateway API). TLS is terminated at the edge; cert-manager issues
-# the certificate referenced here. Replace the domain with your cluster ingress domain.
+# The MaaS platform reconcile requires a Gateway named exactly
+# `maas-default-gateway` in the `openshift-ingress` namespace using the
+# `openshift-default` GatewayClass. The name/namespace are hardcoded in the
+# MaaS controller (GATEWAY env), so they must match — do not rename.
+#
+# This file contains a ${CLUSTER_DOMAIN} placeholder, so apply it with envsubst
+# (NOT `oc apply -k`):
+#   export CLUSTER_DOMAIN=$(oc get ingress.config cluster -o jsonpath='{.spec.domain}')
+#   envsubst < manifests/05-maas/gateway/gateway.yaml | oc apply -f -
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: openshift-default
+spec:
+  controllerName: "openshift.io/gateway-controller/v1"
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: maas-gateway
-  namespace: redhat-ods-applications
+  name: maas-default-gateway
+  namespace: openshift-ingress
+  annotations:
+    opendatahub.io/managed: "false"
+    # Lets the ODH/Authorino stack bootstrap gateway TLS wiring automatically.
+    security.opendatahub.io/authorino-tls-bootstrap: "true"
   labels:
-    app.kubernetes.io/part-of: maas
+    app.kubernetes.io/name: maas
+    app.kubernetes.io/instance: maas-default-gateway
+    app.kubernetes.io/component: gateway
+    opendatahub.io/managed: "false"
 spec:
-  gatewayClassName: kuadrant
+  gatewayClassName: openshift-default
   listeners:
     - name: https
-      protocol: HTTPS
+      hostname: "maas.${CLUSTER_DOMAIN}"
       port: 443
-      hostname: "maas.apps.cluster.example.com"
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - kind: Secret
-            name: maas-gateway-tls
+      protocol: HTTPS
       allowedRoutes:
         namespaces:
           from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          # RHDP-provisioned clusters ship a wildcard cert in this secret.
+          - group: ""
+            kind: Secret
+            name: cert-manager-ingress-cert

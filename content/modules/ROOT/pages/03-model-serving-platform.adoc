@@ -12,7 +12,7 @@ available, and create a storage connection KServe uses to pull model artifacts.
 
 By the end of this module you will be able to:
 
-* Enable the KServe single-model serving platform for projects
+* Enable model serving (KServe single-model serving) for projects
 * Enable or duplicate a vLLM `ServingRuntime`
 * Create an S3/URI connection Secret with the correct connection-type annotation
 * Set a default cluster-wide deployment strategy
@@ -35,13 +35,15 @@ oc label namespace {project_name} opendatahub.io/dashboard=true --overwrite
 
 * `oc get project {project_name}` shows the project `Active`.
 
-== Exercise 2: Enable the single-model serving platform
+== Exercise 2: Enable model serving
 
-Single-model serving (KServe) is enabled cluster-wide in the {rhoai-short} dashboard.
+Single-model serving (KServe) is enabled cluster-wide in the {rhoai-short} dashboard. In
+{rhoai-short} 3.4 the multi-model (ModelMesh) platform has been removed, so the older
+*Model serving platforms* checkboxes are replaced by a single *Enable model serving* toggle.
 
-. In the {rhoai-short} dashboard, go to *Settings -> Cluster settings*.
+. In the {rhoai-short} dashboard, go to *Settings -> Cluster settings -> General settings*.
 
-. Under *Model serving platforms*, ensure *Single-model serving platform* is enabled.
+. Under *Model deployments*, ensure *Enable model serving* is on.
 
 Alternatively confirm KServe is managed in the DSC:
 
@@ -96,8 +98,9 @@ oc get secret aws-connection-models -n {project_name} \
 
 == Exercise 5 (Optional): Set a default deployment strategy
 
-Choose a cluster-wide default deployment strategy for KServe deployments (Rolling update or
-Recreate) to match your update-availability requirements.
+On the same *Settings -> Cluster settings -> General settings* page, under *Default deployment
+strategy*, choose a cluster-wide default for KServe deployments (*Rolling update* or *Recreate*)
+to match your update-availability requirements.
 
 == Module summary
 
