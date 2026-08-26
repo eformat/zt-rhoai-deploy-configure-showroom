@@ -1,0 +1,106 @@
+---
+# Default Perses PrometheusDatasource for the RHOAI "Observe & monitor" dashboard.
+#
+# WHY THIS EXISTS (RHOAI 3.4.3 + COO 1.5.1 version gap):
+#   The RHOAI Monitoring controller normally creates this datasource itself. On RHOAI
+#   3.4.3 it emits a PersesDatasource whose spec.client.tls.caCert OMITS `namespace`.
+#   The Cluster Observability Operator 1.5.1 CRD tightened validation and now REQUIRES
+#   `caCert.namespace` when type is configmap/secret, so the controller's apply fails:
+#     PersesDatasource "cluster-prometheus-datasource" is invalid:
+#       spec.client.tls.caCert: Invalid value: namespace is required ...
+#   Because that apply fails, the controller never creates the datasource OR its
+#   supporting ServiceAccount / RBAC / token secret. Every dashboard panel then queries
+#   the *default* PrometheusDatasource, finds none, and shows:
+#     "No datasource found for kind 'PrometheusDatasource' and name 'undefined'".
+#
+# This bundle recreates exactly what a working RHOAI 3.4.3 cluster (on the older COO CRD)
+# has, with the single required `namespace: redhat-ods-monitoring` added to caCert.
+# Remove it once RHOAI ships a build that sets caCert.namespace itself.
+#
+# The ServiceAccount token authenticates to the cluster-wide OpenShift Monitoring Thanos
+# Querier (:9091); cluster-monitoring-view grants read access and system:auth-delegator
+# lets the querier's oauth-proxy validate the token via TokenReview.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: data-science-prometheus-cluster-proxy
+  namespace: redhat-ods-monitoring
+  labels:
+    app: data-science-prometheus-cluster-proxy
+    platform.opendatahub.io/part-of: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: data-science-prometheus-cluster-proxy
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-monitoring-view
+subjects:
+  - kind: ServiceAccount
+    name: data-science-prometheus-cluster-proxy
+    namespace: redhat-ods-monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: data-science-prometheus-cluster-proxy-auth-delegator
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: data-science-prometheus-cluster-proxy
+    namespace: redhat-ods-monitoring
+---
+# Long-lived SA token the datasource proxy uses as its bearer token. The token
+# controller populates .data (token, ca.crt, service-ca.crt, namespace) on create.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-prometheus-datasource-secret
+  namespace: redhat-ods-monitoring
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+  annotations:
+    kubernetes.io/service-account.name: data-science-prometheus-cluster-proxy
+type: kubernetes.io/service-account-token
+---
+apiVersion: perses.dev/v1alpha2
+kind: PersesDatasource
+metadata:
+  name: cluster-prometheus-datasource
+  namespace: redhat-ods-monitoring
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+spec:
+  client:
+    tls:
+      enable: true
+      caCert:
+        type: configmap
+        name: prometheus-web-tls-ca
+        certPath: service-ca.crt
+        # Required by the COO 1.5.1 PersesDatasource CRD; RHOAI 3.4.3 omits it (the bug).
+        namespace: redhat-ods-monitoring
+  config:
+    # Marks this as the default PrometheusDatasource so dashboard panels that omit a
+    # datasource name (all of them) resolve to it.
+    default: true
+    display:
+      name: Cluster Prometheus
+      description: OpenShift Monitoring Thanos Querier - provides cluster-wide metrics
+    plugin:
+      kind: PrometheusDatasource
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            secret: cluster-prometheus-datasource-secret
+            url: https://thanos-querier.openshift-monitoring.svc:9091

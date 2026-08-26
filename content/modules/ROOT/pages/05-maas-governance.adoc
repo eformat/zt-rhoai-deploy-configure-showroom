@@ -202,6 +202,83 @@ oc wait --for=jsonpath='{.status.phase}'=Succeeded \
 oc apply -f manifests/05-maas/serving-operators/operator-config.yaml
 ----
 
+. Install the observability backend operators — *Cluster Observability Operator* (COO) and
+  *Red Hat build of OpenTelemetry*. These provide the Perses / `MonitoringStack` backend behind
+  the dashboard's *Observe & monitor -> Dashboard* tab; without them the tab loads but reports
+  *Service Unavailable*:
++
+[source,bash,role="execute"]
+----
+oc apply -k manifests/05-maas/observability-operators
+----
+
+. Wait for both operator CSVs to reach `Succeeded`:
++
+[source,bash,role="execute"]
+----
+oc wait --for=jsonpath='{.status.state}'=AtLatestKnown \
+  subscription/cluster-observability-operator -n openshift-cluster-observability-operator --timeout=5m
+oc wait --for=jsonpath='{.status.phase}'=Succeeded \
+  csv/$(oc get subscription cluster-observability-operator -n openshift-cluster-observability-operator -o jsonpath='{.status.currentCSV}') \
+  -n openshift-cluster-observability-operator --timeout=5m
+oc wait --for=jsonpath='{.status.state}'=AtLatestKnown \
+  subscription/opentelemetry-product -n openshift-opentelemetry-operator --timeout=5m
+oc wait --for=jsonpath='{.status.phase}'=Succeeded \
+  csv/$(oc get subscription opentelemetry-product -n openshift-opentelemetry-operator -o jsonpath='{.status.currentCSV}') \
+  -n openshift-opentelemetry-operator --timeout=5m
+----
++
+Once COO is installed (and DSCI monitoring is already `Managed` from the base install), the
+{rhoai-short} operator builds the `data-science-monitoringstack` (Prometheus + Thanos) and the
+`data-science-perses` instance in `redhat-ods-monitoring`. Wait for the monitoring `ConfigMap`
+that the next step depends on to appear:
++
+[source,bash,role="execute"]
+----
+until oc get configmap prometheus-web-tls-ca -n redhat-ods-monitoring >/dev/null 2>&1; do
+  echo "waiting for the RHOAI operator to build the MonitoringStack..."; sleep 10
+done
+----
+
+. Apply two small workarounds for a known {rhoai} {rhoai_version} + COO version gap (see the note
+  below), then restart Prometheus so it remounts the new secret:
++
+[source,bash,role="execute"]
+----
+# 1) The default Perses "Cluster Prometheus" datasource the dashboard panels resolve to.
+oc apply -k manifests/05-maas/observability-datasource
+
+# 2) Mirror the service-ca bundle into a Secret of the same name (the COO MonitoringStack
+#    references prometheus-web-tls-ca as a Secret; RHOAI creates it as a ConfigMap).
+oc create secret generic prometheus-web-tls-ca -n redhat-ods-monitoring \
+  --from-literal=service-ca.crt="$(oc get cm prometheus-web-tls-ca -n redhat-ods-monitoring -o jsonpath='{.data.service-ca\.crt}')" \
+  --dry-run=client -o yaml | oc apply -f -
+
+# 3) Force Prometheus to remount the secret, then wait for the stack to go Available.
+oc delete pod -l app.kubernetes.io/name=prometheus -n redhat-ods-monitoring --ignore-not-found
+oc wait --for=condition=Available monitoringstack/data-science-monitoringstack \
+  -n redhat-ods-monitoring --timeout=10m
+----
++
+[NOTE]
+====
+*Why these workarounds?* {rhoai} {rhoai_version} was built against an older Cluster Observability
+Operator than the one currently in the catalog (COO 1.5.1), and two of the resources the RHOAI
+Monitoring controller generates no longer pass the newer CRD/stack validation:
+
+* The controller's `PersesDatasource` (`cluster-prometheus-datasource`, the *default* datasource
+  every panel resolves to) omits `caCert.namespace`, which COO 1.5.1 now requires — so the apply
+  fails and the datasource is never created. Panels then error with
+  `No datasource found for kind 'PrometheusDatasource' and name 'undefined'`. The manifest
+  re-creates it (plus its `ServiceAccount`, RBAC, and token secret) with the required field; the
+  operator then adopts it and `Monitoring` reports `Ready=True`.
+* RHOAI creates `prometheus-web-tls-ca` as a `ConfigMap`, but the COO 1.5.1 `MonitoringStack`
+  references it as a `Secret`, leaving the Prometheus pod stuck in `Init`. Mirroring the CA into a
+  like-named `Secret` (both can coexist) unblocks it.
+
+Both steps become unnecessary once RHOAI ships a build aligned with COO 1.5.x.
+====
+
 . Enable MaaS in the `DataScienceCluster` and the dashboard:
 +
 [source,bash,role="execute"]
@@ -228,8 +305,16 @@ oc rollout status deploy/rhods-dashboard -n redhat-ods-applications --timeout=3m
 
 === Verify
 
+* `oc get monitoring default-monitoring -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'`
+  reports `True`, and `oc get monitoringstack data-science-monitoringstack -n redhat-ods-monitoring`
+  is `Available` with its Prometheus pod `3/3 Running`.
 * After a browser refresh, the {rhoai-short} dashboard shows the *Models as a Service* view (AI
   asset endpoints, API keys) and an *Observe & monitor -> Dashboard (Tech Preview)* nav item.
+* On the *Observe & monitor -> Dashboard*, the *Cluster* tab renders live data (System health,
+  Memory/CPU utilization, Inbound traffic) instead of
+  `No datasource found ... name 'undefined'`. The *GPU utilization*, *Deployed models*, and
+  *Request success rate* panels show *No data* until a model is served and called (this is a
+  CPU-only cluster with no GPUs; the model panels populate after Exercises 4-7).
 
 == Exercise 4: Deploy the model as an LLMInferenceService
 

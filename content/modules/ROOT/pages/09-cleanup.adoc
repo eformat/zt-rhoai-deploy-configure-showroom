@@ -50,6 +50,11 @@ oc delete -f manifests/05-maas/serving-operators/operator-config.yaml --ignore-n
 oc delete -k manifests/05-maas/serving-operators --ignore-not-found
 oc delete -k manifests/06-llmd/operators --ignore-not-found
 
+# Observability backend + the version-gap workarounds (COO, OpenTelemetry, Perses datasource)
+oc delete -k manifests/05-maas/observability-datasource --ignore-not-found
+oc delete secret prometheus-web-tls-ca -n redhat-ods-monitoring --ignore-not-found
+oc delete -k manifests/05-maas/observability-operators --ignore-not-found
+
 # RHOAI (dedicated clusters only)
 oc delete -k manifests/01-install/dsc --ignore-not-found
 oc delete -k manifests/01-install/operator --ignore-not-found
