@@ -79,4 +79,12 @@ kserve_vllm:gpu_cache_usage_perc
 * You viewed vLLM engine metrics and MaaS per-subscription token usage.
 * You correlated scaling with the signals that drove it.
 
+== References
+
+* Red Hat product documentation:
+** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/managing_and_monitoring_models/index[Managing and monitoring models]
+** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/deploy_models_using_distributed_inference_with_llm-d/index[Deploy models using Distributed Inference with llm-d] (observability chapter)
+* Reference code:
+** https://github.com/vllm-project/vllm[vllm-project/vllm] (engine metrics)
+
 Continue to xref:08-conclusion.adoc[Conclusion].

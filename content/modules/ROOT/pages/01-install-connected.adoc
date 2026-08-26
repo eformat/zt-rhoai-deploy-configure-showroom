@@ -102,6 +102,13 @@ oc get ns redhat-ods-operator redhat-ods-applications rhods-notebooks
 * You created a `DataScienceCluster` that reached `Ready` with the dashboard and KServe enabled.
 * You logged into the {rhoai-short} dashboard.
 
+== References
+
+* Red Hat product documentation:
+** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/installing_and_uninstalling_openshift_ai_self-managed/index[Installing and uninstalling OpenShift AI Self-Managed]
+* Reference code:
+** https://github.com/opendatahub-io/opendatahub-operator[opendatahub-io/opendatahub-operator]
+
 This satisfies the "RHOAI Ready" precondition. You can reach the same end state through the
 disconnected path in xref:02-install-disconnected.adoc[Module 2], or skip ahead to
 xref:03-model-serving-platform.adoc[Module 3] to configure model serving.

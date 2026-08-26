@@ -105,4 +105,13 @@ Recreate) to match your update-availability requirements.
 * A vLLM `ServingRuntime` is available in `{project_name}`.
 * A correctly annotated connection Secret is ready for KServe to pull model artifacts.
 
+== References
+
+* Red Hat product documentation:
+** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/configuring_your_model-serving_platform/index[Configuring your model-serving platform]
+** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/working_on_projects/index[Working on projects] (connections API)
+** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/deploying_models/index[Deploying models]
+* Reference code:
+** https://github.com/opendatahub-io/kserve[opendatahub-io/kserve]
+
 The project is ready to deploy a model. Continue to xref:04-vllm-serving.adoc[Module 4: Serving with vLLM].

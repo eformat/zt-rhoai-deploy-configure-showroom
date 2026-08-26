@@ -115,4 +115,12 @@ oc apply -f manifests/02-disconnected/proxy-cache-idms.yaml
 * You completed the `DataScienceCluster` install offline.
 * You saw the lighter-weight Quay proxy pull-through cache alternative.
 
+== References
+
+* Red Hat product documentation:
+** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/installing_and_uninstalling_openshift_ai_self-managed_in_a_disconnected_environment/index[Installing and uninstalling OpenShift AI Self-Managed in a disconnected environment]
+** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/customize_models_for_gen_ai_and_agentic_ai_applications/index[Customize Models for Gen AI and Agentic AI Applications] (mirroring the Red Hat Python index)
+* Reference code:
+** https://github.com/rh-aiservices-bu/disconnected-rhoai[rh-aiservices-bu/disconnected-rhoai]
+
 Continue to xref:03-model-serving-platform.adoc[Module 3: Model-Serving Platform].

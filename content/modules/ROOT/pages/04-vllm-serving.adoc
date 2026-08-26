@@ -111,4 +111,14 @@ resource requests.
 * You reached the model over an external route.
 * You deployed the simulator for GPU-free testing.
 
+== References
+
+* Red Hat product documentation:
+** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/deploying_models/index[Deploying models] (making inference requests)
+** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/managing_and_monitoring_models/index[Managing and monitoring models]
+** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/configuring_your_model-serving_platform/index[Configuring your model-serving platform] (vLLM ServingRuntime)
+* Reference code:
+** https://github.com/vllm-project/vllm[vllm-project/vllm]
+** https://github.com/llm-d/llm-d-inference-sim[llm-d/llm-d-inference-sim] (the CPU simulator used here)
+
 Continue to xref:05-maas-governance.adoc[Module 5: MaaS Governance].
