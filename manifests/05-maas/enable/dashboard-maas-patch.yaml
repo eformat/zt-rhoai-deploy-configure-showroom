@@ -1,3 +1,4 @@
+---
 # Strategic-merge patch enabling the MaaS view in the RHOAI dashboard.
 # Apply with: oc patch odhdashboardconfig odh-dashboard-config \
 #   -n redhat-ods-applications --type merge \
