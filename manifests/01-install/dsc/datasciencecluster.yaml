@@ -30,12 +30,6 @@ spec:
     datasciencepipelines:
       managementState: Managed
     # Not needed for the workshop
-    trustyai:
-      eval:
-        lmeval:
-          permitCodeExecution: allow
-          permitOnline: allow
-      managementState: Removed
     feastoperator:
       managementState: Removed
     codeflare:
