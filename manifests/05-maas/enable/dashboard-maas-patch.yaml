@@ -5,4 +5,10 @@
 #   --patch-file manifests/05-maas/enable/dashboard-maas-patch.yaml
 spec:
   dashboardConfig:
+    # Surfaces the MaaS view (AI asset endpoints, API keys).
     modelAsService: true
+    # Adds the "Observe & monitor -> Dashboard (Tech Preview)" nav. The tab renders
+    # data from the RHOAI monitoring stack (DSCI monitoring.metrics, enabled by default
+    # in this workshop); the full per-subscription token telemetry pipeline is wired up
+    # in Module 7.
+    observabilityDashboard: true

@@ -164,32 +164,10 @@ Catalog* menus then appear in the left nav.
 
 == Exercise 3: Enable MaaS in the DSC and dashboard
 
-[source,bash,role="execute"]
-----
-oc patch datasciencecluster default-dsc --type merge \
-  --patch-file manifests/05-maas/enable/dsc-maas-patch.yaml
-oc patch odhdashboardconfig odh-dashboard-config -n redhat-ods-applications --type merge \
-  --patch-file manifests/05-maas/enable/dashboard-maas-patch.yaml
-----
-
-This sets `spec.components.kserve.modelsAsService.managementState: Managed` in the
-`DataScienceCluster` and `spec.dashboardConfig.modelAsService: true` in `OdhDashboardConfig`.
-
-=== Verify
-
-* The *Models as a Service* view appears in the {rhoai-short} dashboard and the MaaS components
-  become ready.
-
-== Exercise 4: Deploy the model as an LLMInferenceService
-
-MaaS governs models served as an `LLMInferenceService` — the gateway-native KServe serving object
-— so publish `{cpu_model}` again in that form, wired to the MaaS gateway. The plain
-`InferenceService` from Module 4 stays as-is; `MaaSModelRef` only accepts an `LLMInferenceService`
-or an `ExternalModel`, never a plain `InferenceService`.
-
 . Install the serving-path operators the `LLMInferenceService` depends on — *Leader Worker Set*
-  and *JobSet*. KServe uses these to run the gateway-native serving pods; without them the
-  `LLMInferenceService` never becomes `Ready`. (They are also the llm-d prerequisites reused in
+  and *JobSet* — *before* enabling MaaS in the DSC. KServe uses these to run the gateway-native
+  serving pods, and enabling MaaS while they are missing makes the `DataScienceCluster` report a
+  `LeaderWorkerSet not installed` warning. (They are also the llm-d prerequisites reused in
   xref:06-llmd-scaling.adoc[Module 6].) The manifest creates only namespaces, operator groups, and
   subscriptions, so it is safe to apply in one go:
 +
@@ -223,6 +201,46 @@ oc wait --for=jsonpath='{.status.phase}'=Succeeded \
 ----
 oc apply -f manifests/05-maas/serving-operators/operator-config.yaml
 ----
+
+. Enable MaaS in the `DataScienceCluster` and the dashboard:
++
+[source,bash,role="execute"]
+----
+oc patch datasciencecluster default-dsc --type merge \
+  --patch-file manifests/05-maas/enable/dsc-maas-patch.yaml
+oc patch odhdashboardconfig odh-dashboard-config -n redhat-ods-applications --type merge \
+  --patch-file manifests/05-maas/enable/dashboard-maas-patch.yaml
+----
++
+This sets `spec.components.kserve.modelsAsService.managementState: Managed` in the
+`DataScienceCluster`, and turns on the `modelAsService` and `observabilityDashboard` dashboard
+feature flags in `OdhDashboardConfig`.
+
+. Restart the dashboard so it picks up the new feature flags and the now-available MaaS backend.
+  The dashboard pods were started before MaaS was enabled, so without this the *Models as a
+  Service* view and the *Observe & monitor* nav do not appear:
++
+[source,bash,role="execute"]
+----
+oc rollout restart deploy/rhods-dashboard -n redhat-ods-applications
+oc rollout status deploy/rhods-dashboard -n redhat-ods-applications --timeout=3m
+----
+
+=== Verify
+
+* `oc get datasciencecluster default-dsc -o jsonpath='{.status.conditions[?(@.type=="ModelsAsServiceReady")].status}{"\n"}'`
+  reports `True`, and the `DataScienceCluster` no longer shows the `LeaderWorkerSet not installed`
+  warning.
+* After a browser refresh, the {rhoai-short} dashboard shows the *Models as a Service* view (AI
+  asset endpoints, API keys) and an *Observe & monitor -> Dashboard (Tech Preview)* nav item.
+
+== Exercise 4: Deploy the model as an LLMInferenceService
+
+MaaS governs models served as an `LLMInferenceService` — the gateway-native KServe serving object
+— so publish `{cpu_model}` again in that form, wired to the MaaS gateway. The plain
+`InferenceService` from Module 4 stays as-is; `MaaSModelRef` only accepts an `LLMInferenceService`
+or an `ExternalModel`, never a plain `InferenceService`. The serving-path operators it depends on
+(Leader Worker Set, JobSet) were installed in Exercise 3.
 
 . Deploy the model as an `LLMInferenceService` wired to the MaaS gateway:
 +
