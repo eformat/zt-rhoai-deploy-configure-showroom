@@ -1,7 +1,7 @@
 ---
 # Kuadrant TelemetryPolicy: labels the gateway's token-usage metrics with identity fields
 # pulled from the authenticated request (model, user, subscription, org, cost center). This
-# is what powers the per-subscription token-consumption view in Module 7 (Observability).
+# is what powers the per-subscription token-consumption view in Module 5 (Exercise 8).
 apiVersion: extensions.kuadrant.io/v1alpha1
 kind: TelemetryPolicy
 metadata:

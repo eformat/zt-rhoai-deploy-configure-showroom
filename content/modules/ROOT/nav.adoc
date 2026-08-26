@@ -6,6 +6,5 @@
 * xref:04-vllm-serving.adoc[Module 4: Serving with vLLM]
 * xref:05-maas-governance.adoc[Module 5: MaaS Governance]
 * xref:06-llmd-scaling.adoc[Module 6: Scaling llm-d]
-* xref:07-observability.adoc[Module 7: Observability]
-* xref:08-conclusion.adoc[Conclusion]
-* xref:09-cleanup.adoc[Cleanup]
+* xref:07-conclusion.adoc[Conclusion]
+* xref:08-cleanup.adoc[Cleanup]

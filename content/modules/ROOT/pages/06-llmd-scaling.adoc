@@ -25,14 +25,14 @@ By the end of this module you will be able to:
 * Deploy a model as an `LLMInferenceService`
 * Authorize KEDA to read inference metrics from user-workload monitoring
 * Scale the deployment with a KEDA `ScaledObject` driven by vLLM queue depth
-* Drive load and observe a replica change
+* Drive load and observe a replica change, and correlate it with the metrics that drove it
 * Understand how the Workload Variant Autoscaler provides the same capability on GPU
 
 == Prerequisites
 
 * The model-serving platform is enabled (xref:03-model-serving-platform.adoc[Module 3])
 * User Workload Monitoring enabled, so vLLM metrics reach Thanos
-  (xref:07-observability.adoc[Module 7]) — KEDA scales on those metrics
+  (xref:05-maas-governance.adoc[Module 5, Exercise 3]) — KEDA scales on those metrics
 
 == Exercise 1: Install the Custom Metrics Autoscaler
 
@@ -165,10 +165,30 @@ done; wait
 oc get deploy qwen25-05b-llmd-kserve -n {project_name} -w
 ----
 
+. Correlate the scale event with the metrics that drove it. In the {ocp} console under
+  *Observe -> Metrics* ({metrics_console_url}), overlay the queue depth and KV-cache utilization
+  with the replica count over the same time window:
++
+[source,promql]
+----
+kserve_vllm:num_requests_waiting
+----
++
+[source,promql]
+----
+kserve_vllm:gpu_cache_usage_perc
+----
++
+These are the same user-workload metrics KEDA reads from Thanos (enabled in
+xref:05-maas-governance.adoc[Module 5, Exercise 3]); the replica count rises after
+`num_requests_waiting` crosses the `ScaledObject` threshold.
+
 === Verify
 
 * The replica count increases under load (up to `maxReplicaCount`) and scales back down once the
   queue drains.
+* You can point to the `kserve_vllm:num_requests_waiting` threshold crossing that triggered the
+  scale-up.
 
 == Exercise 5 (Reference): Workload Variant Autoscaler on GPU
 
@@ -196,8 +216,9 @@ automatically. No `ScaledObject`, RBAC, or `ClusterTriggerAuthentication` are au
   `LLMInferenceService`.
 * You authorized KEDA against user-workload monitoring and scaled the deployment with a
   `ScaledObject` driven by vLLM queue depth — no GPU required.
-* You drove load, watched replicas scale, and saw how the Workload Variant Autoscaler delivers the
-  same capability on GPU.
+* You drove load, watched replicas scale, correlated the scale event with the `kserve_vllm` queue
+  and KV-cache metrics that drove it, and saw how the Workload Variant Autoscaler delivers the same
+  capability on GPU.
 
 == References
 
@@ -208,4 +229,4 @@ automatically. No `ScaledObject`, RBAC, or `ClusterTriggerAuthentication` are au
 * Reference code:
 ** https://github.com/llm-d/llm-d[llm-d/llm-d] (workload-autoscaling guide)
 
-Continue to xref:07-observability.adoc[Module 7: Observability].
+Continue to xref:07-conclusion.adoc[Conclusion].

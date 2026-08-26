@@ -60,6 +60,9 @@ oc delete -k manifests/05-maas/observability-datasource --ignore-not-found
 oc delete secret prometheus-web-tls-ca -n redhat-ods-monitoring --ignore-not-found
 oc delete -k manifests/05-maas/observability-operators --ignore-not-found
 
+# User Workload Monitoring (reverts enableUserWorkload; shared with Module 6 KEDA scaling)
+oc delete -k manifests/05-maas/uwm --ignore-not-found
+
 # RHOAI (dedicated clusters only)
 oc delete -k manifests/01-install/dsc --ignore-not-found
 oc delete -k manifests/01-install/operator --ignore-not-found

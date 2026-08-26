@@ -15,10 +15,10 @@ Congratulations — you have deployed, configured, served, governed, scaled, and
   vLLM CPU runtime available in your project.
 * *Module 4 — Serving with vLLM*: Served `{cpu_model}` and queried it via the OpenAI-compatible API.
 * *Module 5 — MaaS Governance* (Tech Preview): Governed access with subscriptions, API keys, and
-  token rate limiting.
+  token rate limiting; enabled User Workload Monitoring and viewed vLLM engine metrics and MaaS
+  per-subscription token telemetry.
 * *Module 6 — Scaling with llm-d + WVA* (Tech Preview): Scaled distributed inference on
-  inference-specific signals.
-* *Module 7 — Observability*: Viewed vLLM engine metrics and MaaS token-usage telemetry.
+  inference-specific signals, and correlated the scale event with the metrics that drove it.
 
 == Where to go next
 
@@ -32,5 +32,5 @@ Congratulations — you have deployed, configured, served, governed, scaled, and
 * link:https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4[{rhoai} {rhoai_version} documentation]
 * link:https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/govern_llm_access_with_models-as-a-service/index[Govern LLM access with {maas}]
 
-Thank you for completing the workshop! Continue to xref:09-cleanup.adoc[Cleanup] to remove the lab
+Thank you for completing the workshop! Continue to xref:08-cleanup.adoc[Cleanup] to remove the lab
 resources.

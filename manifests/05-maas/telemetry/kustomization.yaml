@@ -2,7 +2,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Per-subscription MaaS telemetry, viewed in Module 7. Both CRs target the MaaS gateway, so
+# Per-subscription MaaS telemetry, viewed in Module 5 (Exercise 8). Both CRs target the MaaS gateway, so
 # apply them only after Exercise 2 (gateway) and Exercise 5 (MaaSAuthPolicy) — the
 # TelemetryPolicy reads identity fields produced by the auth layer.
 #

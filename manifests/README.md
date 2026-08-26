@@ -10,9 +10,8 @@ after each. Paths are referenced from the AsciiDoc pages and are relative to the
 | Disconnected mirror | `02-disconnected/` | Module 2 |
 | vLLM runtime + connection | `03-serving-platform/` | Module 3 |
 | vLLM model (qwen25-05b) | `04-vllm/` | Module 4 |
-| MaaS (postgres, RHCL, connectivity-link, gateway, serving-operators, observability-operators, observability-datasource, enable, model, subscription, telemetry) | `05-maas/` | Module 5 (TP) |
+| MaaS (postgres, RHCL, connectivity-link, gateway, serving-operators, uwm, observability-operators, observability-datasource, enable, model, subscription, telemetry) | `05-maas/` | Module 5 (TP) |
 | llm-d + KEDA/WVA | `06-llmd/` | Module 6 (TP) |
-| User Workload Monitoring | `07-observability/uwm` | Module 7 |
 
 ## Placeholders to fill
 
@@ -26,6 +25,13 @@ after each. Paths are referenced from the AsciiDoc pages and are relative to the
 `05-maas/subscription/*` (MaaS CRs) and `06-llmd/autoscaling/variantautoscaling.yaml` (WVA) use
 Technology Preview CRDs. Their API groups/fields may differ on your build — validate with
 `oc explain <kind>` before applying.
+
+`05-maas/uwm/` enables OpenShift User Workload Monitoring (`enableUserWorkload: true` in the
+`cluster-monitoring-config` ConfigMap). This is a prerequisite, not a workaround: UWM scrapes the
+served-model ServiceMonitors/PodMonitors in the project namespace and federates them into
+`thanos-querier.openshift-monitoring`, which is the default datasource behind the RHOAI dashboard's
+model panels *and* the source Module 6's KEDA/WVA autoscaler reads. Without it the dashboard renders
+but the vLLM panels stay empty. Applied in Module 5 (Exercise 3).
 
 `05-maas/observability-datasource/` is a workaround for a RHOAI 3.4.3 + Cluster Observability
 Operator 1.5.1 version gap: the RHOAI Monitoring controller fails to create the default Perses
