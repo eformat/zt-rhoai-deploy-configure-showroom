@@ -25,7 +25,9 @@ By the end of this module you will be able to:
 == Exercise 1: Deploy the CPU model
 
 Deploy `{cpu_model}` as an `InferenceService` bound to the vLLM runtime. The manifest requests CPU
-only and disables the scheduler for single-node serving.
+only and disables the scheduler for single-node serving. It also carries the
+`networking.kserve.io/visibility: exposed` label, so KServe creates a managed external route (the
+same as ticking *Make deployed models available through an external route* in the dashboard).
 
 [source,bash,role="execute",subs="attributes"]
 ----
@@ -50,18 +52,24 @@ oc get inferenceservice qwen25-05b -n {project_name}
 
 == Exercise 2: Query the OpenAI-compatible API
 
-. Capture the model's internal URL and send a completion request. In RawDeployment mode the
-  predictor Service is headless and listens on port *8080*, so use `.status.address.url` (which
-  includes the port) rather than `.status.url`. Run this from an in-cluster terminal:
+. Because the model is exposed (Exercise 1), `.status.url` is the *external* HTTPS route, reachable
+  from the bastion. Capture it and send a completion request:
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-URL=$(oc get inferenceservice qwen25-05b -n {project_name} -o jsonpath='{.status.address.url}')
-# -> http://qwen25-05b-predictor.{project_name}.svc.cluster.local:8080
+URL=$(oc get inferenceservice qwen25-05b -n {project_name} -o jsonpath='{.status.url}')
+# -> https://qwen25-05b-{project_name}.apps.<cluster-domain>
 curl -sk $URL/v1/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"qwen25-05b","prompt":"Red Hat OpenShift AI is","max_tokens":16}'
 ----
++
+[TIP]
+====
+For the *internal* (in-cluster) endpoint instead, use `.status.address.url` — it resolves to
+`http://qwen25-05b-predictor.{project_name}.svc.cluster.local:8080` and only works from a pod or
+in-cluster terminal, not the bastion.
+====
 
 === Verify
 

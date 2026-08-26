@@ -12,6 +12,12 @@ metadata:
     serving.kserve.io/deploymentMode: RawDeployment
   labels:
     opendatahub.io/dashboard: "true"
+    # KServe-managed external route (the dashboard's "Make deployed models available
+    # through an external route"). KServe creates and owns an edge-terminated Route, and
+    # .status.url becomes the external HTTPS endpoint. No token auth yet — governed access
+    # (API keys + rate limits) is added in Module 5 via MaaS. Remove this label to keep the
+    # model cluster-internal only.
+    networking.kserve.io/visibility: exposed
 spec:
   predictor:
     minReplicas: 1
