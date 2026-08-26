@@ -73,7 +73,7 @@ TOKEN=$(oc create token qwen25-05b-caller -n {project_name} --duration=1h)
 curl -sk $URL/v1/completions \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
-  -d '{"model":"qwen25-05b","prompt":"Red Hat OpenShift AI is","max_tokens":16}'
+  -d '{"model":"qwen25-05b","prompt":"Red Hat OpenShift AI is","max_tokens":16}' | jq .
 ----
 +
 [TIP]

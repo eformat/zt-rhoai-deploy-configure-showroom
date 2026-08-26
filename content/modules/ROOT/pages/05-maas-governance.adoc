@@ -209,7 +209,7 @@ echo "Model: $MODEL_NAME"
 curl -sSk "${HOST}/v1/chat/completions" \
   -H "Authorization: Bearer ${API_KEY}" \
   -H "Content-Type: application/json" \
-  -d "{\"model\":\"${MODEL_NAME}\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}],\"max_tokens\":50}" | jq
+  -d "{\"model\":\"${MODEL_NAME}\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}],\"max_tokens\":50}" | jq .
 ----
 
 === Verify
