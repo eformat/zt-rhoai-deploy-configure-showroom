@@ -38,6 +38,14 @@ spec:
       env:
         - name: VLLM_CPU_KVCACHE_SPACE
           value: "2"               # GiB reserved for the CPU KV cache
+        # The container sees ALL host cores (e.g. 32) but the cgroup only grants `limits.cpu`.
+        # Without these, vLLM/OpenMP spawns one thread per host core, thrashes over the 4 it
+        # actually has, and gets CPU-throttled down to ~0.5 tok/s (a 16-token reply then takes
+        # ~30s and trips the route's 30s timeout -> 504). Pin the thread pool to the allocation.
+        - name: OMP_NUM_THREADS
+          value: "4"
+        - name: VLLM_CPU_OMP_THREADS_BIND
+          value: "0-3"
       resources:
         requests:
           cpu: "2"

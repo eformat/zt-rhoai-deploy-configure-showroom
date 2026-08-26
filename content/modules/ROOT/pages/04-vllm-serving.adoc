@@ -71,6 +71,14 @@ For the *internal* (in-cluster) endpoint instead, use `.status.address.url` — 
 in-cluster terminal, not the bastion.
 ====
 
+[NOTE]
+====
+The *first* request after the pod starts warms up vLLM and can take ~30s; if it times out, just run
+it again. Steady-state responses are a couple of seconds. (The manifest pins `OMP_NUM_THREADS` to
+the CPU limit — without that, vLLM oversubscribes every host core, gets throttled to ~0.5 tok/s, and
+every reply trips the route's 30s timeout.)
+====
+
 === Verify
 
 * The call returns HTTP 200 with a JSON body containing generated text in `choices[0].text`.
@@ -87,7 +95,7 @@ KServe reconciles it with the `InferenceService`.
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-oc get route -n {project_name} -l serving.kserve.io/inferenceservice=qwen25-05b
+oc get route -n {project_name} -l inferenceservice-name=qwen25-05b
 oc get inferenceservice qwen25-05b -n {project_name} -o jsonpath='{.status.url}{"\n"}'
 ----
 
