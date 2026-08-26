@@ -15,7 +15,6 @@ By the end of this module you will be able to:
 * Expose the model on a token-authenticated external route
 * Send an authenticated inference request to the OpenAI-compatible endpoint
 * Compare the model access-control options (internal, external, token auth, governed/MaaS)
-* Deploy a vLLM simulator for a GPU-free smoke test
 * Read the `InferenceService` / `ServingRuntime` YAML to understand vLLM arguments
 
 == Prerequisites
@@ -175,22 +174,7 @@ traffic.
 * The route exists, the pod lists a `kube-rbac-proxy` container, and the `ServiceAccount` and
   `RoleBinding` are present — i.e. the model is externally reachable *and* token-protected.
 
-== Exercise 4: Deploy the vLLM simulator (GPU-free smoke test)
-
-The vLLM simulator responds to the OpenAI API without loading real weights — useful for validating
-the serving path and, later, for scaling exercises.
-
-[source,bash,role="execute",subs="attributes"]
-----
-oc apply -k manifests/04-vllm/simulator -n {project_name}
-oc wait inferenceservice/{sim_model} -n {project_name} --for=condition=Ready --timeout=10m
-----
-
-=== Verify
-
-* A completion request to the simulator endpoint returns a successful response.
-
-== Exercise 5 (Optional): Inspect the vLLM runtime arguments
+== Exercise 4 (Optional): Inspect the vLLM runtime arguments
 
 [source,bash,role="execute",subs="attributes"]
 ----
@@ -206,7 +190,6 @@ resource requests.
 * You served `{cpu_model}` on vLLM on a CPU-only cluster and got a 200 from `/v1/completions`.
 * You reached the model over a *token-authenticated* external route, and saw the access-control
   options (internal / external / token auth / governed MaaS).
-* You deployed the simulator for GPU-free testing.
 
 == References
 
@@ -216,6 +199,5 @@ resource requests.
 ** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/configuring_your_model-serving_platform/index[Configuring your model-serving platform] (vLLM ServingRuntime)
 * Reference code:
 ** https://github.com/vllm-project/vllm[vllm-project/vllm]
-** https://github.com/llm-d/llm-d-inference-sim[llm-d/llm-d-inference-sim] (the CPU simulator used here)
 
 Continue to xref:05-maas-governance.adoc[Module 5: MaaS Governance].

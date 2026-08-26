@@ -18,8 +18,7 @@ oc delete -k manifests/06-llmd/service -n {project_name} --ignore-not-found
 # Module 5 — MaaS
 oc delete -k manifests/05-maas/subscription -n {project_name} --ignore-not-found
 
-# Module 4 — vLLM models
-oc delete -k manifests/04-vllm/simulator -n {project_name} --ignore-not-found
+# Module 4 — vLLM model
 oc delete -k manifests/04-vllm/qwen25-05b -n {project_name} --ignore-not-found
 ----
 

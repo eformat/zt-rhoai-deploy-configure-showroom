@@ -54,7 +54,7 @@ It provides opinionated Kustomize manifests and status gates to accelerate a han
 
 == A note on hardware and Technology Preview
 
-* *CPU-only*: Every module runs without a GPU, using the `{cpu_model}` model and a vLLM simulator.
+* *CPU-only*: Every module runs without a GPU, using the `{cpu_model}` model.
   GPU-specific tuning is described conceptually and can be enabled later.
 * *Technology Preview*: Module 5 (vLLM-on-MaaS) exercises a Technology Preview feature, clearly
   flagged; APIs and behaviour may change and it is not supported for production use.

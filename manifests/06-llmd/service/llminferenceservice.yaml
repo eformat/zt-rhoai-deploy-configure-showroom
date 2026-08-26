@@ -1,7 +1,7 @@
 ---
 # Distributed inference with llm-d. Deploying an LLMInferenceService brings up the
-# llm-d Endpoint Picker (EPP) and vLLM worker pods. CPU-only variant using the simulator
-# so scaling is observable without GPUs.
+# llm-d Endpoint Picker (EPP) and vLLM worker pods. CPU-only variant (Red Hat vLLM CPU
+# image) so scaling is observable without GPUs.
 apiVersion: serving.kserve.io/v1alpha1
 kind: LLMInferenceService
 metadata:

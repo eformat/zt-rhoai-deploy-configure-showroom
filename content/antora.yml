@@ -37,6 +37,5 @@ asciidoc:
     metrics_console_url: https://console-openshift-console.apps.cluster.example.com/monitoring
     # --- Models ---
     cpu_model: "Qwen2.5-0.5B-Instruct"
-    sim_model: "vllm-simulator"
     # --- Source repo for manifests ---
     repo-url: "https://github.com/eformat/zt-rhoai-deploy-configure-showroom"
