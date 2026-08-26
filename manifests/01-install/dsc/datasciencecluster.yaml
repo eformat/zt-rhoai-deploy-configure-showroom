@@ -11,8 +11,12 @@ spec:
       managementState: Managed
     kserve:
       managementState: Managed
+      # MaaS (Models-as-a-Service) is enabled later in Module 5, after Red Hat
+      # Connectivity Link and the maas-default-gateway exist. Left Managed here it
+      # blocks the DSC (ModelsAsServiceReady=False, GatewayNotReady). Module 5's
+      # dsc-maas-patch flips this back to Managed once the prerequisites are in place.
       modelsAsService:
-        managementState: Managed
+        managementState: Removed
       nim:
         managementState: Managed
       rawDeploymentServiceConfig: Headless
