@@ -21,7 +21,8 @@ By the end of this module you will be able to:
 * Enable {maas} in the `DataScienceCluster` and dashboard
 * Provision the MaaS PostgreSQL database and `maas-db-config` secret
 * Install {rhcl}, register Kuadrant, and bootstrap the gateway
-* Deploy a model as an `LLMInferenceService` attached to the MaaS gateway
+* Install the gateway-native serving operators (Leader Worker Set, JobSet) and deploy a model as an
+  `LLMInferenceService` attached to the MaaS gateway
 * Publish and govern it with `MaaSModelRef`, `MaaSSubscription`, and `MaaSAuthPolicy` custom resources
 * Mint an API key, call the model through the gateway, and demonstrate token rate limiting (HTTP 429)
 
@@ -141,6 +142,45 @@ MaaS governs models served as an `LLMInferenceService` — the gateway-native KS
 `InferenceService` from Module 4 stays as-is; `MaaSModelRef` only accepts an `LLMInferenceService`
 or an `ExternalModel`, never a plain `InferenceService`.
 
+. Install the serving-path operators the `LLMInferenceService` depends on — *Leader Worker Set*
+  and *JobSet*. KServe uses these to run the gateway-native serving pods; without them the
+  `LLMInferenceService` never becomes `Ready`. (They are also the llm-d prerequisites reused in
+  xref:06-llmd-scaling.adoc[Module 6].) The manifest creates only namespaces, operator groups, and
+  subscriptions, so it is safe to apply in one go:
++
+[source,bash,role="execute"]
+----
+oc apply -k manifests/05-maas/serving-operators
+----
+
+. Wait for both operator CSVs to reach `Succeeded` — their activation CRDs are not registered
+  until the installs complete:
++
+[source,bash,role="execute"]
+----
+oc wait --for=jsonpath='{.status.state}'=AtLatestKnown \
+  subscription/leader-worker-set -n openshift-lws-operator --timeout=5m
+oc wait --for=jsonpath='{.status.phase}'=Succeeded \
+  csv/$(oc get subscription leader-worker-set -n openshift-lws-operator -o jsonpath='{.status.currentCSV}') \
+  -n openshift-lws-operator --timeout=5m
+oc wait --for=jsonpath='{.status.state}'=AtLatestKnown \
+  subscription/job-set -n openshift-jobset-operator --timeout=5m
+oc wait --for=jsonpath='{.status.phase}'=Succeeded \
+  csv/$(oc get subscription job-set -n openshift-jobset-operator -o jsonpath='{.status.currentCSV}') \
+  -n openshift-jobset-operator --timeout=5m
+----
+
+. Activate both operators by creating their singleton `cluster` CRs. The
+  `LeaderWorkerSetOperator` / `JobSetOperator` CRDs exist only after the CSVs above are
+  `Succeeded`, which is why they are applied separately from the subscriptions:
++
+[source,bash,role="execute"]
+----
+oc apply -f manifests/05-maas/serving-operators/operator-config.yaml
+----
+
+. Deploy the model as an `LLMInferenceService` wired to the MaaS gateway:
++
 [source,bash,role="execute",subs="attributes"]
 ----
 oc apply -k manifests/05-maas/model -n {project_name}
@@ -158,14 +198,30 @@ oc wait --for=condition=Ready llminferenceservice/qwen25-05b-maas -n {project_na
 Publish the `LLMInferenceService` through MaaS and govern it with a subscription and a token rate
 limit.
 
+. Apply the governance CRs:
++
 [source,bash,role="execute",subs="attributes"]
 ----
 oc apply -k manifests/05-maas/subscription -n {project_name}
 ----
-
++
 This creates a `MaaSModelRef` (pointing at the `qwen25-05b-maas` `LLMInferenceService`), a
 `MaaSSubscription` (`qwen25-05b-demo`, with a 100-token-per-minute rate limit granted to all
 authenticated users), and a `MaaSAuthPolicy`.
+
+. Wire up per-subscription telemetry so gateway token usage is broken out by subscription. Both
+  CRs target `maas-default-gateway` and build on the `MaaSAuthPolicy` you just created, so they are
+  applied after governance. You *view* these metrics in
+  xref:07-observability.adoc[Module 7]:
++
+[source,bash,role="execute"]
+----
+oc apply -k manifests/05-maas/telemetry
+----
++
+This creates an Istio `Telemetry` (tagging gateway latency with the `x-maas-subscription` header)
+and a Kuadrant `TelemetryPolicy` (labelling token-usage metrics with the model, user, subscription,
+organization, and cost center from the authenticated request).
 
 [NOTE]
 ====
@@ -179,6 +235,8 @@ Exercise 2; confirm that step completed.
 
 * `oc get maasmodelref,maassubscription,maasauthpolicy -n {project_name}` shows all three, and the
   model appears in the *Models as a Service* view in the dashboard.
+* `oc get telemetry,telemetrypolicy -n openshift-ingress` lists `latency-per-subscription` and
+  `maas-telemetry`.
 
 == Exercise 6: Mint an API key and call the model
 

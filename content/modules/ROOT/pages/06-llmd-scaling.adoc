@@ -21,7 +21,7 @@ as GPU reference in <<Exercise 5 (Reference): Workload Variant Autoscaler on GPU
 
 By the end of this module you will be able to:
 
-* Install the llm-d prerequisite operators (Leader Worker Set) and the Custom Metrics Autoscaler
+* Install the Custom Metrics Autoscaler (the llm-d serving operators come from Module 5)
 * Deploy a model as an `LLMInferenceService`
 * Authorize KEDA to read inference metrics from user-workload monitoring
 * Scale the deployment with a KEDA `ScaledObject` driven by vLLM queue depth
@@ -34,33 +34,34 @@ By the end of this module you will be able to:
 * User Workload Monitoring enabled, so vLLM metrics reach Thanos
   (xref:07-observability.adoc[Module 7]) — KEDA scales on those metrics
 
-== Exercise 1: Install the prerequisite operators
+== Exercise 1: Install the Custom Metrics Autoscaler
 
-Install the Leader Worker Set operator (llm-d) and the Custom Metrics Autoscaler (KEDA). Both
-manifests create only namespaces, operator groups, and subscriptions, so they are safe to apply
-together.
+The gateway-native serving operators this module's `LLMInferenceService` needs — *Leader Worker
+Set* and *JobSet* — were installed in xref:05-maas-governance.adoc[Module 5]. If you skipped
+Module 5, apply them now with `oc apply -k manifests/05-maas/serving-operators` followed by
+`oc apply -f manifests/05-maas/serving-operators/operator-config.yaml` (see Module 5, Exercise 4).
 
-. Apply the subscriptions:
+Here you add the *Custom Metrics Autoscaler* (KEDA). The manifest creates only a namespace,
+operator group, and subscription.
+
+. Apply the subscription:
 +
 [source,bash,role="execute"]
 ----
 oc apply -k manifests/06-llmd/operators
 ----
 
-. Wait for both operator CSVs to reach `Succeeded`:
+. Wait for the operator CSV to reach `Succeeded`:
 +
 [source,bash,role="execute"]
 ----
-oc wait --for=jsonpath='{.status.phase}'=Succeeded \
-  csv -l operators.coreos.com/leader-worker-set.openshift-lws-operator= \
-  -n openshift-lws-operator --timeout=5m
 oc wait --for=jsonpath='{.status.phase}'=Succeeded \
   csv -l operators.coreos.com/openshift-custom-metrics-autoscaler-operator.openshift-keda= \
   -n openshift-keda --timeout=5m
 ----
 
 . Activate KEDA by creating the `KedaController` (its CRD exists only after the CSV above is
-`Succeeded`, which is why it is applied separately from the subscriptions):
+`Succeeded`, which is why it is applied separately from the subscription):
 +
 [source,bash,role="execute"]
 ----
@@ -70,11 +71,12 @@ oc rollout status deploy/keda-operator -n openshift-keda --timeout=5m
 
 === Verify
 
-* Both CSVs report `Succeeded` and the KEDA controller and metrics-apiserver pods are `Running`:
+* The KEDA CSV reports `Succeeded` and the KEDA controller and metrics-apiserver pods are
+  `Running`:
 +
 [source,bash,role="execute"]
 ----
-oc get csv -A | grep -Ei 'leader-worker-set|custom-metrics'
+oc get csv -n openshift-keda | grep -Ei 'custom-metrics'
 oc get pods -n openshift-keda
 ----
 

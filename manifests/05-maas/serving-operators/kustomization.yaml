@@ -1,0 +1,13 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Serving-path operators for gateway-native KServe (LLMInferenceService), used by both
+# MaaS (Module 5) and llm-d scaling (Module 6). Subscriptions only — safe to apply together.
+#
+# The operator-config.yaml activation CRs (JobSetOperator / LeaderWorkerSetOperator) are
+# deliberately excluded: their CRDs do not exist until the CSVs above reach Succeeded, so
+# they are applied separately afterwards (same pattern as 06-llmd/operators/kedacontroller.yaml).
+resources:
+  - leader-worker-set-subscription.yaml
+  - jobset-subscription.yaml

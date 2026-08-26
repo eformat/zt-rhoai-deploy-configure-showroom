@@ -1,0 +1,24 @@
+---
+# Activation CRs for the serving-path operators. Each operator watches for a singleton
+# CR named `cluster` and, once created, rolls out its controller (the LeaderWorkerSet and
+# JobSet controllers that KServe's LLMInferenceService pods depend on).
+#
+# Apply this AFTER both operator CSVs reach Succeeded — these CRDs
+# (leaderworkersetoperators / jobsetoperators .operator.openshift.io) are registered by the
+# CSVs and do not exist beforehand, which is why this file is not in kustomization.yaml.
+apiVersion: operator.openshift.io/v1
+kind: LeaderWorkerSetOperator
+metadata:
+  name: cluster
+spec:
+  managementState: Managed
+  logLevel: Normal
+  operatorLogLevel: Normal
+---
+apiVersion: operator.openshift.io/v1
+kind: JobSetOperator
+metadata:
+  name: cluster
+spec:
+  logLevel: Normal
+  operatorLogLevel: Normal

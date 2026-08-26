@@ -16,6 +16,7 @@ oc delete -k manifests/06-llmd/autoscaling -n {project_name} --ignore-not-found
 oc delete -k manifests/06-llmd/service -n {project_name} --ignore-not-found
 
 # Module 5 — MaaS
+oc delete -k manifests/05-maas/telemetry --ignore-not-found
 oc delete -k manifests/05-maas/subscription -n {project_name} --ignore-not-found
 
 # Module 4 — vLLM model
@@ -42,6 +43,11 @@ Deleting the `DataScienceCluster` removes all {rhoai-short} components.
 # MaaS database and gateway
 oc delete -k manifests/05-maas/gateway --ignore-not-found
 oc delete -k manifests/05-maas/postgres -n redhat-ods-applications --ignore-not-found
+
+# Serving-path + autoscaling operators (Leader Worker Set, JobSet, KEDA)
+oc delete -f manifests/05-maas/serving-operators/operator-config.yaml --ignore-not-found
+oc delete -k manifests/05-maas/serving-operators --ignore-not-found
+oc delete -k manifests/06-llmd/operators --ignore-not-found
 
 # RHOAI (dedicated clusters only)
 oc delete -k manifests/01-install/dsc --ignore-not-found

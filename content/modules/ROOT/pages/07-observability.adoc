@@ -64,6 +64,14 @@ legacy `gpu_cache_usage_perc` name.
 . Open the MaaS Observability Dashboard in the {rhoai-short} dashboard after generating traffic in
   Module 5.
 
+[NOTE]
+====
+Per-subscription breakdown is produced by the Istio `Telemetry` and Kuadrant `TelemetryPolicy`
+applied in xref:05-maas-governance.adoc[Module 5, Exercise 5]. If the dashboard shows only
+aggregate usage, confirm those CRs exist:
+`oc get telemetry,telemetrypolicy -n openshift-ingress`.
+====
+
 === Verify
 
 * The dashboard shows per-subscription token consumption reflecting the Module 5 traffic.

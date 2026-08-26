@@ -16,7 +16,10 @@ metadata:
   name: leader-worker-set
   namespace: openshift-lws-operator
 spec:
-  channel: stable
+  # The only published channel is stable-v1.0 (verify with:
+  #   oc get packagemanifest leader-worker-set -n openshift-marketplace \
+  #     -o jsonpath='{.status.channels[*].name}')
+  channel: stable-v1.0
   installPlanApproval: Automatic
   name: leader-worker-set
   source: redhat-operators

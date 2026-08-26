@@ -1,0 +1,14 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Per-subscription MaaS telemetry, viewed in Module 7. Both CRs target the MaaS gateway, so
+# apply them only after Exercise 2 (gateway) and Exercise 5 (MaaSAuthPolicy) — the
+# TelemetryPolicy reads identity fields produced by the auth layer.
+#
+# - Telemetry (Istio): requires the OpenShift Service Mesh / Istio CRDs (present once RHOAI
+#   serving is configured).
+# - TelemetryPolicy (Kuadrant): requires the Red Hat Connectivity Link CRDs from Exercise 2.
+resources:
+  - telemetry.yaml
+  - telemetrypolicy.yaml

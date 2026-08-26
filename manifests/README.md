@@ -10,8 +10,8 @@ after each. Paths are referenced from the AsciiDoc pages and are relative to the
 | Disconnected mirror | `02-disconnected/` | Module 2 |
 | vLLM runtime + connection | `03-serving-platform/` | Module 3 |
 | vLLM model (qwen25-05b) | `04-vllm/` | Module 4 |
-| MaaS (postgres, RHCL, gateway, enable, subscription) | `05-maas/` | Module 5 (TP) |
-| llm-d + WVA | `06-llmd/` | Module 6 (TP) |
+| MaaS (postgres, RHCL, gateway, serving-operators, enable, model, subscription, telemetry) | `05-maas/` | Module 5 (TP) |
+| llm-d + KEDA/WVA | `06-llmd/` | Module 6 (TP) |
 | User Workload Monitoring | `07-observability/uwm` | Module 7 |
 
 ## Placeholders to fill
