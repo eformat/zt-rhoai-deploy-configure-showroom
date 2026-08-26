@@ -1,0 +1,18 @@
+---
+# Activates the Custom Metrics Autoscaler. Apply this ONLY after the
+# custom-metrics-autoscaler operator CSV reports Succeeded — the KedaController CRD is
+# registered by the operator install, so this fails with "no matches for kind" if applied
+# too early. It is intentionally NOT part of kustomization.yaml for that reason.
+#   oc apply -f manifests/06-llmd/operators/kedacontroller.yaml
+apiVersion: keda.sh/v1alpha1
+kind: KedaController
+metadata:
+  name: keda
+  namespace: openshift-keda
+spec:
+  # Empty watchNamespace = cluster-wide; KEDA reconciles ScaledObjects in any namespace.
+  watchNamespace: ""
+  operator:
+    logLevel: info
+  metricsServer:
+    logLevel: "0"

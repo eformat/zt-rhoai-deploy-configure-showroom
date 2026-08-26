@@ -1,0 +1,15 @@
+---
+# Cluster-scoped auth KEDA uses to query Thanos. Points at the keda-metrics-reader token
+# Secret for the bearer token and the cluster CA. Referenced by the ScaledObject trigger.
+apiVersion: keda.sh/v1alpha1
+kind: ClusterTriggerAuthentication
+metadata:
+  name: ai-inference-keda-thanos
+spec:
+  secretTargetRef:
+    - parameter: bearerToken
+      name: keda-metrics-reader-token
+      key: token
+    - parameter: ca
+      name: keda-metrics-reader-token
+      key: ca.crt

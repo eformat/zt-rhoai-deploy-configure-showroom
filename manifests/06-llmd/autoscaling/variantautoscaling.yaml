@@ -1,15 +1,55 @@
 ---
-# Technology Preview — Workload Variant Autoscaler (WVA). Scales the llm-d deployment
-# from inference-specific signals via a KEDA ScaledObject. Schema may change; validate
-# with `oc explain variantautoscaling` during workshop-act.
+# ============================================================================
+# GPU REFERENCE ONLY — NOT applied on this CPU workshop.
+# ============================================================================
+# The Workload Variant Autoscaler (WVA) is the RHOAI 3.4 mechanism for scaling llm-d
+# deployments from inference-specific signals (KV-cache utilization, queue depth). It is
+# documented in "Deploy models using Distributed Inference with llm-d", Chapter 7.
+#
+# It is kept here as guidance for a future GPU-enabled cluster. It does NOT run on this
+# build because:
+#   * the DataScienceCluster on this build has no spec.components.wva field (see
+#     dsc-wva-patch.yaml), so the VariantAutoscaling CRD is never registered; and
+#   * WVA targets accelerated (GPU) inference stacks.
+# The runnable CPU-only autoscaling path for this workshop is KEDA — see
+# manifests/06-llmd/autoscaling-keda/. When WVA is available, it internally creates an
+# equivalent KEDA ScaledObject for you.
+#
+# In 3.4 the primary way to enable WVA is on the LLMInferenceService itself, via
+# spec.scaling.wva.keda (with an accelerator label and a GPU vllm-cuda image), e.g.:
+#
+#   spec:
+#     model:
+#       uri: hf://Qwen/Qwen2.5-7B-Instruct
+#       name: Qwen/Qwen2.5-7B-Instruct
+#     scaling:
+#       minReplicas: 1
+#       maxReplicas: 5
+#       wva:
+#         keda:
+#           pollingInterval: 5
+#           cooldownPeriod: 30
+#     template:
+#       containers:
+#         - name: main
+#           image: registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0
+#           resources:
+#             limits:
+#               nvidia.com/gpu: 1
+#
+# A standalone VariantAutoscaling CR (schema per the 3.4 doc) looks like this:
 apiVersion: llmd.ai/v1alpha1
 kind: VariantAutoscaling
 metadata:
   name: qwen25-05b-wva
   namespace: rhoai-deploy
+  labels:
+    app: llm-inference
+    model: qwen25-05b
 spec:
-  targetRef:
-    name: qwen25-05b-llmd
-    kind: LLMInferenceService
+  scaleTargetRef:
+    kind: Deployment
+    name: qwen25-05b-llmd-kserve
+  modelID: "Qwen/Qwen2.5-0.5B-Instruct"
   minReplicas: 1
   maxReplicas: 4

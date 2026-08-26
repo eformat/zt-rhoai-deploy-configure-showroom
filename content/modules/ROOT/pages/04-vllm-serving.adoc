@@ -50,11 +50,14 @@ oc get inferenceservice qwen25-05b -n {project_name}
 
 == Exercise 2: Query the OpenAI-compatible API
 
-. Capture the model's internal URL and send a completion request:
+. Capture the model's internal URL and send a completion request. In RawDeployment mode the
+  predictor Service is headless and listens on port *8080*, so use `.status.address.url` (which
+  includes the port) rather than `.status.url`. Run this from an in-cluster terminal:
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-URL=$(oc get inferenceservice qwen25-05b -n {project_name} -o jsonpath='{.status.url}')
+URL=$(oc get inferenceservice qwen25-05b -n {project_name} -o jsonpath='{.status.address.url}')
+# -> http://qwen25-05b-predictor.{project_name}.svc.cluster.local:8080
 curl -sk $URL/v1/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"qwen25-05b","prompt":"Red Hat OpenShift AI is","max_tokens":16}'
@@ -64,20 +67,33 @@ curl -sk $URL/v1/completions \
 
 * The call returns HTTP 200 with a JSON body containing generated text in `choices[0].text`.
 
-== Exercise 3: Expose an external route
+== Exercise 3: External access (deferred to the MaaS gateway)
 
-. Confirm the external route created by KServe (or enable token auth) and reach the model from
-  outside the cluster:
-+
-[source,bash,role="execute",subs="attributes"]
+A KServe RawDeployment `InferenceService` only creates an in-cluster (headless) Service — it does
+*not* create an external route. You *could* expose it directly with an edge-terminated `Route`:
+
+[source,bash,subs="attributes"]
 ----
-oc get route -n {project_name} | grep qwen25-05b
-curl -sk {model_endpoint_url}/v1/models
+# For reference only — do NOT run this in the workshop.
+oc create route edge qwen25-05b --service=qwen25-05b-predictor --port=http -n {project_name}
 ----
+
+We intentionally do *not* do this. Hand-rolling a per-model `Route` bypasses authentication and
+rate limiting, and it is not how models are exposed in the reference architecture. External,
+governed access is introduced in xref:05-maas-governance.adoc[Module 5], where the model is
+published through the *MaaS inference gateway* (a dedicated Gateway API gateway fronted by
+Red Hat Connectivity Link for API-key auth and rate limits).
+
+[NOTE]
+====
+The cluster's `data-science-gateway` fronts the {rhoai-short} dashboard UI and OAuth login — it is
+*not* an inference gateway. MaaS provisions its own `maas-default-gateway` for model traffic.
+====
 
 === Verify
 
-* The model is reachable through the external route and `/v1/models` lists `qwen25-05b`.
+* `oc get route -n {project_name}` shows no route for the model — external access is deferred to
+  Module 5.
 
 == Exercise 4: Deploy the vLLM simulator (GPU-free smoke test)
 

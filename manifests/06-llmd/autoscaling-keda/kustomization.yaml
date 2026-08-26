@@ -1,0 +1,13 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Runnable CPU-only autoscaling: KEDA (Custom Metrics Autoscaler) scaling the llm-d
+# Deployment on a Prometheus/Thanos query. Namespaces are pinned in each manifest
+# (openshift-keda for the reader token/RBAC, rhoai-deploy for the ScaledObject), so apply
+# this without a -n override:
+#   oc apply -k manifests/06-llmd/autoscaling-keda
+resources:
+  - keda-metrics-reader-rbac.yaml
+  - clustertriggerauthentication.yaml
+  - scaledobject.yaml

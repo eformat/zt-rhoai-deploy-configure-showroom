@@ -99,7 +99,7 @@ oc apply -f manifests/05-maas/connectivity-link/kuadrant.yaml
 oc wait --for=condition=Ready kuadrant/kuadrant -n kuadrant-system --timeout=5m
 ----
 
-. Create the MaaS gateway. The gateway manifest carries a `${CLUSTER_DOMAIN}` placeholder,
+. Create the MaaS gateway. The gateway manifest carries a `$\{CLUSTER_DOMAIN}` placeholder,
 so it is applied through `envsubst` (not `oc apply -k`) — the gateway name, namespace, and
 `GatewayClass` are fixed values the MaaS controller expects and must not be changed:
 +
@@ -259,4 +259,4 @@ done | sort | uniq -c
 ** https://github.com/jharmison-redhat/maas-from-scratch[jharmison-redhat/maas-from-scratch]
 ** https://github.com/opendatahub-io/models-as-a-service[opendatahub-io/models-as-a-service] (upstream)
 
-Continue to xref:06-llmd-scaling.adoc[Module 6: Scaling with llm-d + WVA].
+Continue to xref:06-llmd-scaling.adoc[Module 6: Scaling llm-d].

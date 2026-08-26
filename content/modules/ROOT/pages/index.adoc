@@ -56,9 +56,10 @@ It provides opinionated Kustomize manifests and status gates to accelerate a han
 
 * *CPU-only*: Every module runs without a GPU, using the `{cpu_model}` model and a vLLM simulator.
   GPU-specific tuning is described conceptually and can be enabled later.
-* *Technology Preview*: Module 5 (vLLM-on-MaaS) and Module 6 (Workload Variant Autoscaler) exercise
-  Technology Preview features. They are clearly flagged; APIs and behaviour may change and they are
-  not supported for production use.
+* *Technology Preview*: Module 5 (vLLM-on-MaaS) exercises a Technology Preview feature, clearly
+  flagged; APIs and behaviour may change and it is not supported for production use.
+* *CPU vs GPU autoscaling*: Module 6 scales llm-d with the Custom Metrics Autoscaler (KEDA) on CPU,
+  and covers the GPU-only Workload Variant Autoscaler as reference for a future GPU cluster.
 
 == Let's get started!
 

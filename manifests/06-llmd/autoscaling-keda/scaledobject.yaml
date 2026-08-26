@@ -1,0 +1,37 @@
+---
+# CPU-only autoscaling for the llm-d model. KEDA scales the vLLM Deployment on inference
+# queue depth (vllm:num_requests_waiting) pulled from user-workload monitoring via Thanos —
+# no GPU and no Workload Variant Autoscaler required.
+#
+# scaleTargetRef.name must be the Deployment KServe creates for the LLMInferenceService.
+# KServe names it "<llmisvc-name>-kserve"; confirm the exact name on your build with:
+#   oc get deploy -n rhoai-deploy -l app.kubernetes.io/part-of=llm-d
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: qwen25-05b-llmd-keda
+  namespace: rhoai-deploy
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: qwen25-05b-llmd-kserve
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  pollingInterval: 15
+  cooldownPeriod: 60
+  triggers:
+    - type: prometheus
+      metricType: Value
+      metadata:
+        # In-cluster Thanos querier (port 9091 honors cluster-monitoring-view RBAC).
+        serverAddress: https://thanos-querier.openshift-monitoring.svc.cluster.local:9091
+        # Average queue depth per replica to hold; exceed it and KEDA adds replicas.
+        # vllm:num_requests_waiting is the raw vLLM metric; if your build only exposes the
+        # remapped recording rule, swap the query to kserve_vllm:num_requests_waiting.
+        query: sum(vllm:num_requests_waiting{namespace="rhoai-deploy"})
+        threshold: "5"
+        authModes: bearer
+      authenticationRef:
+        kind: ClusterTriggerAuthentication
+        name: ai-inference-keda-thanos

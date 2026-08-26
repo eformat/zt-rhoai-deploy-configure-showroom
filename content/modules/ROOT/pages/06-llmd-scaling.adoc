@@ -1,54 +1,88 @@
-= Module 6: Scaling with Distributed Inference (llm-d + WVA)
-:navtitle: Module 6: Scaling with llm-d + WVA
+= Module 6: Scaling Distributed Inference (llm-d + KEDA)
+:navtitle: Module 6: Scaling llm-d
 :toc: macro
 :toclevels: 1
 :icons: font
 
-Single-replica serving does not scale to real traffic. {rhoai} {rhoai_version} introduces distributed
-inference with *llm-d* and the *Workload Variant Autoscaler (WVA)*, which scales replicas from
-inference-specific signals (KV-cache utilization, queue depth) rather than generic CPU/memory.
+Single-replica serving does not scale to real traffic. {rhoai} {rhoai_version} runs distributed
+inference with *llm-d*, and this module scales it automatically with the *Custom Metrics
+Autoscaler* (KEDA) — adding replicas from an inference signal (queue depth) rather than generic
+CPU/memory, and without requiring a GPU.
 
-[IMPORTANT]
+[NOTE]
 ====
-*Technology Preview.* The Workload Variant Autoscaler is a Technology Preview feature in {rhoai}
-{rhoai_version}. APIs and behaviour may change; it is not supported for production use.
+*Two autoscalers, one goal.* On GPU clusters {rhoai} {rhoai_version} offers the *Workload Variant
+Autoscaler (WVA)*, which scales llm-d from KV-cache and queue signals and internally creates a KEDA
+`ScaledObject` for you. This CPU-only workshop drives that same KEDA layer directly. WVA is covered
+as GPU reference in <<Exercise 5 (Reference): Workload Variant Autoscaler on GPU>>.
 ====
 
 == Learning objectives
 
 By the end of this module you will be able to:
 
-* Install the llm-d prerequisite operators (Leader Worker Set, {rhcl})
+* Install the llm-d prerequisite operators (Leader Worker Set) and the Custom Metrics Autoscaler
 * Deploy a model as an `LLMInferenceService`
-* Enable the Workload Variant Autoscaler with a `VariantAutoscaling` CR
-* Observe a load-driven replica change
-* Tune the WVA saturation-scaling thresholds
+* Authorize KEDA to read inference metrics from user-workload monitoring
+* Scale the deployment with a KEDA `ScaledObject` driven by vLLM queue depth
+* Drive load and observe a replica change
+* Understand how the Workload Variant Autoscaler provides the same capability on GPU
 
 == Prerequisites
 
 * The model-serving platform is enabled (xref:03-model-serving-platform.adoc[Module 3])
-* User Workload Monitoring enabled (for `kserve_vllm` metrics — see xref:07-observability.adoc[Module 7])
+* User Workload Monitoring enabled, so vLLM metrics reach Thanos
+  (xref:07-observability.adoc[Module 7]) — KEDA scales on those metrics
 
-== Exercise 1: Install the llm-d prerequisite operators
+== Exercise 1: Install the prerequisite operators
 
+Install the Leader Worker Set operator (llm-d) and the Custom Metrics Autoscaler (KEDA). Both
+manifests create only namespaces, operator groups, and subscriptions, so they are safe to apply
+together.
+
+. Apply the subscriptions:
++
 [source,bash,role="execute"]
 ----
 oc apply -k manifests/06-llmd/operators
 ----
 
-=== Verify
-
-* Both the Leader Worker Set and {rhcl} operator CSVs reach `Succeeded`:
+. Wait for both operator CSVs to reach `Succeeded`:
 +
 [source,bash,role="execute"]
 ----
-oc get csv -A | grep -Ei 'leader-worker-set|connectivity'
+oc wait --for=jsonpath='{.status.phase}'=Succeeded \
+  csv -l operators.coreos.com/leader-worker-set.openshift-lws-operator= \
+  -n openshift-lws-operator --timeout=5m
+oc wait --for=jsonpath='{.status.phase}'=Succeeded \
+  csv -l operators.coreos.com/openshift-custom-metrics-autoscaler-operator.openshift-keda= \
+  -n openshift-keda --timeout=5m
+----
+
+. Activate KEDA by creating the `KedaController` (its CRD exists only after the CSV above is
+`Succeeded`, which is why it is applied separately from the subscriptions):
++
+[source,bash,role="execute"]
+----
+oc apply -f manifests/06-llmd/operators/kedacontroller.yaml
+oc rollout status deploy/keda-operator -n openshift-keda --timeout=5m
+----
+
+=== Verify
+
+* Both CSVs report `Succeeded` and the KEDA controller and metrics-apiserver pods are `Running`:
++
+[source,bash,role="execute"]
+----
+oc get csv -A | grep -Ei 'leader-worker-set|custom-metrics'
+oc get pods -n openshift-keda
 ----
 
 == Exercise 2: Deploy an LLMInferenceService
 
-Deploy the CPU model (or simulator) as an `LLMInferenceService`, which brings up the llm-d Endpoint
-Picker (EPP) and vLLM pods.
+Deploy the CPU model as an `LLMInferenceService`, which brings up the llm-d Endpoint Picker (EPP)
+and vLLM pods. The manifest carries `prometheus.io/scrape` annotations so user-workload monitoring
+collects the queue-depth metric KEDA scales on.
 
 [source,bash,role="execute",subs="attributes"]
 ----
@@ -65,27 +99,52 @@ oc get pods -n {project_name} -w
 oc get pods -n {project_name} -l app.kubernetes.io/part-of=llm-d
 ----
 
-== Exercise 3: Enable the Workload Variant Autoscaler
-
+* Note the Deployment name KServe created — the autoscaler targets it in the next exercise
+  (expected: `qwen25-05b-llmd-kserve`):
++
 [source,bash,role="execute",subs="attributes"]
 ----
-oc apply -k manifests/06-llmd/autoscaling -n {project_name}
+oc get deploy -n {project_name} -l app.kubernetes.io/part-of=llm-d
 ----
 
-This creates a `VariantAutoscaling` CR with `spec.minReplicas` / `spec.maxReplicas`.
+== Exercise 3: Autoscale with KEDA
+
+Grant KEDA read access to user-workload monitoring, then create a `ScaledObject` that scales the
+vLLM Deployment on queue depth (`vllm:num_requests_waiting`) pulled from Thanos.
+
+[source,bash,role="execute"]
+----
+oc apply -k manifests/06-llmd/autoscaling-keda
+----
+
+This creates, in one apply:
+
+* a `keda-metrics-reader` ServiceAccount (bound to `cluster-monitoring-view`) and a token Secret,
+  in `openshift-keda`;
+* a `ClusterTriggerAuthentication` (`ai-inference-keda-thanos`) that hands that token to KEDA; and
+* a `ScaledObject` (`qwen25-05b-llmd-keda`) targeting the `qwen25-05b-llmd-kserve` Deployment,
+  `minReplicaCount: 1`, `maxReplicaCount: 4`.
+
+[NOTE]
+====
+The `ScaledObject` targets the Deployment named `qwen25-05b-llmd-kserve`. If Exercise 2 reported a
+different name for your build, edit `manifests/06-llmd/autoscaling-keda/scaledobject.yaml`
+(`spec.scaleTargetRef.name`) before applying.
+====
 
 === Verify
 
-* A KEDA `ScaledObject` is created for the deployment:
+* The `ScaledObject` reports `READY=True` and creates an underlying HPA:
 +
 [source,bash,role="execute",subs="attributes"]
 ----
 oc get scaledobject -n {project_name}
+oc get hpa -n {project_name}
 ----
 
 == Exercise 4: Drive load and observe scaling
 
-. Generate load against the model (the simulator responds fast enough to build queue depth on CPU):
+. Generate load against the model to build queue depth:
 +
 [source,bash,role="execute",subs="attributes"]
 ----
@@ -96,39 +155,54 @@ for i in $(seq 1 500); do
 done; wait
 ----
 
-. Watch the replica count:
+. Watch the replica count climb as the queue-depth threshold is exceeded, then settle back after
+  the cooldown period:
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-oc get deploy -n {project_name} -w
+oc get deploy qwen25-05b-llmd-kserve -n {project_name} -w
 ----
 
 === Verify
 
-* The replica count increases when the KV-cache / queue thresholds are exceeded.
+* The replica count increases under load (up to `maxReplicaCount`) and scales back down once the
+  queue drains.
 
-== Exercise 5 (Optional): Tune the saturation-scaling thresholds
+== Exercise 5 (Reference): Workload Variant Autoscaler on GPU
 
-[source,bash,role="execute"]
-----
-oc edit configmap workload-variant-autoscaler-saturation-scaling-config -n redhat-ods-applications
-----
+On a GPU-enabled {rhoai} {rhoai_version} cluster, the *Workload Variant Autoscaler (WVA)* is the
+recommended way to scale llm-d. It reads KV-cache utilization and queue depth and creates a KEDA
+`ScaledObject` for you — the same engine you drove directly in Exercises 3–4.
 
-Adjust `kvCacheThreshold` and `queueLengthThreshold`, re-run the load, and observe the effect on
-scaling responsiveness.
+WVA is *not runnable on this CPU build*: the `DataScienceCluster` here has no `spec.components.wva`
+field, so the `VariantAutoscaling` CRD is never registered, and WVA targets accelerated hardware.
+The manifests are kept as GPU guidance:
+
+* `manifests/06-llmd/autoscaling/dsc-wva-patch.yaml` — enables WVA in the `DataScienceCluster`
+  (`spec.components.wva.managementState: Managed`).
+* `manifests/06-llmd/autoscaling/variantautoscaling.yaml` — a `VariantAutoscaling` CR, and (in
+  comments) the preferred `LLMInferenceService.spec.scaling.wva.keda` form with a GPU
+  `vllm-cuda-rhel9` image and an accelerator label.
+
+On such a cluster the flow would be: enable WVA in the DSC → deploy the `LLMInferenceService` with
+`spec.scaling.wva` (or apply a `VariantAutoscaling` CR) → WVA creates the `ScaledObject`
+automatically. No `ScaledObject`, RBAC, or `ClusterTriggerAuthentication` are authored by hand.
 
 == Module summary
 
-* You installed the llm-d prerequisites and deployed an `LLMInferenceService`.
-* You enabled the Workload Variant Autoscaler (Technology Preview) and saw a KEDA `ScaledObject`.
-* You drove load and watched replicas scale on inference-specific signals.
+* You installed the llm-d prerequisites and the Custom Metrics Autoscaler, and deployed an
+  `LLMInferenceService`.
+* You authorized KEDA against user-workload monitoring and scaled the deployment with a
+  `ScaledObject` driven by vLLM queue depth — no GPU required.
+* You drove load, watched replicas scale, and saw how the Workload Variant Autoscaler delivers the
+  same capability on GPU.
 
 == References
 
 * Red Hat product documentation:
-** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/deploy_models_using_distributed_inference_with_llm-d/index[Deploy models using Distributed Inference with llm-d]
+** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/deploy_models_using_distributed_inference_with_llm-d/index[Deploy models using Distributed Inference with llm-d] (Chapter 7 — autoscaling)
 ** https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/ai_workloads/index[OpenShift Container Platform 4.21 — AI workloads] (Leader Worker Set)
-** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/managing_resources/index[Managing resources]
+** https://docs.redhat.com/en/documentation/red_hat_openshift_container_platform/4.21/html/nodes/automatically-scaling-pods-with-the-custom-metrics-autoscaler-operator[Custom Metrics Autoscaler Operator]
 * Reference code:
 ** https://github.com/llm-d/llm-d[llm-d/llm-d] (workload-autoscaling guide)
 

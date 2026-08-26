@@ -2,5 +2,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-resources:
-  - variantautoscaling.yaml
+# GPU REFERENCE ONLY. The Workload Variant Autoscaler manifests in this directory
+# (variantautoscaling.yaml, dsc-wva-patch.yaml) are guidance for a future GPU cluster and
+# are intentionally NOT applied — the VariantAutoscaling CRD does not exist on this CPU
+# build. resources is deliberately empty so `oc apply -k` here is a safe no-op.
+# The runnable CPU autoscaling path is manifests/06-llmd/autoscaling-keda/.
+resources: []

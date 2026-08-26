@@ -1,0 +1,16 @@
+---
+# GPU REFERENCE ONLY — NOT applied on this CPU workshop.
+#
+# On a GPU-enabled RHOAI build that ships the Workload Variant Autoscaler, enable it in the
+# DataScienceCluster before creating any VariantAutoscaling CR:
+#   oc patch datasciencecluster default-dsc --type merge \
+#     --patch-file manifests/06-llmd/autoscaling/dsc-wva-patch.yaml
+#
+# This build (rhods-operator 3.4.3) has no spec.components.wva field, so this patch is a
+# no-op / rejected here — hence the CPU workshop uses KEDA (manifests/06-llmd/autoscaling-keda)
+# instead. WVA also requires: user-workload monitoring, the custom-metrics-autoscaler
+# operator, Red Hat Connectivity Link, Service Mesh 3, and compatible AI accelerators.
+spec:
+  components:
+    wva:
+      managementState: Managed

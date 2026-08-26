@@ -9,6 +9,12 @@ metadata:
   namespace: rhoai-deploy
   labels:
     app.kubernetes.io/part-of: llm-d
+  annotations:
+    # Expose vLLM metrics so user-workload monitoring scrapes them — this is what the
+    # KEDA ScaledObject (manifests/06-llmd/autoscaling-keda) queries to scale on queue depth.
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
 spec:
   model:
     uri: "oci://quay.io/redhat-ai-services/modelcar-catalog:qwen2.5-0.5b-instruct"
