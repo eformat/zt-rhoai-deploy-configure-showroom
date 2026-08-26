@@ -18,7 +18,7 @@ asciidoc:
     maas: "Models-as-a-Service"
     rhcl: "Red Hat Connectivity Link"
     rhoai_version: "3.4"
-    ocp_version: "4.19-4.21"
+    ocp_version: "4.19-4.22"
     # --- Lab identity ---
     lab_name: "RHOAI 3.4 Deploy & Configure"
     guid: abc123
