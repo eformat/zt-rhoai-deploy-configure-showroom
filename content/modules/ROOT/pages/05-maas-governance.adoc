@@ -228,9 +228,6 @@ oc rollout status deploy/rhods-dashboard -n redhat-ods-applications --timeout=3m
 
 === Verify
 
-* `oc get datasciencecluster default-dsc -o jsonpath='{.status.conditions[?(@.type=="ModelsAsServiceReady")].status}{"\n"}'`
-  reports `True`, and the `DataScienceCluster` no longer shows the `LeaderWorkerSet not installed`
-  warning.
 * After a browser refresh, the {rhoai-short} dashboard shows the *Models as a Service* view (AI
   asset endpoints, API keys) and an *Observe & monitor -> Dashboard (Tech Preview)* nav item.
 
