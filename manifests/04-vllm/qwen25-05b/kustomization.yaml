@@ -4,3 +4,6 @@ kind: Kustomization
 
 resources:
   - inferenceservice.yaml
+  - serviceaccount.yaml
+  - role.yaml
+  - rolebinding.yaml

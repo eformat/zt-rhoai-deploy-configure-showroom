@@ -10,13 +10,19 @@ metadata:
   annotations:
     openshift.io/display-name: "Qwen2.5-0.5B-Instruct (CPU)"
     serving.kserve.io/deploymentMode: RawDeployment
+    # Require token auth on the external route (the dashboard's "Require token authentication").
+    # ODH injects a kube-rbac-proxy sidecar in front of vLLM; every request must carry a
+    # ServiceAccount bearer token that is RBAC-authorized to `get` this InferenceService
+    # (see serviceaccount.yaml / role.yaml / rolebinding.yaml). Set to "false" (or remove) to
+    # expose the route unauthenticated. Module 5 (MaaS) layers governed, multi-tenant access
+    # (self-service API keys + rate limits) on top of this.
+    security.opendatahub.io/enable-auth: "true"
   labels:
     opendatahub.io/dashboard: "true"
     # KServe-managed external route (the dashboard's "Make deployed models available
     # through an external route"). KServe creates and owns an edge-terminated Route, and
-    # .status.url becomes the external HTTPS endpoint. No token auth yet — governed access
-    # (API keys + rate limits) is added in Module 5 via MaaS. Remove this label to keep the
-    # model cluster-internal only.
+    # .status.url becomes the external HTTPS endpoint. Remove this label to keep the model
+    # cluster-internal only (headless Service, no route).
     networking.kserve.io/visibility: exposed
 spec:
   predictor:

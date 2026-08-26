@@ -1,0 +1,14 @@
+---
+# Binds the caller ServiceAccount to the get-inferenceservice Role so its bearer token
+# passes the kube-rbac-proxy authorization check.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: qwen25-05b-caller-inference-get
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: qwen25-05b-inference-get
+subjects:
+  - kind: ServiceAccount
+    name: qwen25-05b-caller

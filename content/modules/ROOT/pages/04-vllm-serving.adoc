@@ -12,8 +12,9 @@ on a *CPU-only* cluster and make OpenAI-compatible inference requests — no GPU
 By the end of this module you will be able to:
 
 * Deploy `{cpu_model}` (single-node, no scheduler) on the vLLM runtime
-* Send an inference request to the OpenAI-compatible endpoint
-* Expose the model on an external route
+* Expose the model on a token-authenticated external route
+* Send an authenticated inference request to the OpenAI-compatible endpoint
+* Compare the model access-control options (internal, external, token auth, governed/MaaS)
 * Deploy a vLLM simulator for a GPU-free smoke test
 * Read the `InferenceService` / `ServingRuntime` YAML to understand vLLM arguments
 
@@ -25,9 +26,17 @@ By the end of this module you will be able to:
 == Exercise 1: Deploy the CPU model
 
 Deploy `{cpu_model}` as an `InferenceService` bound to the vLLM runtime. The manifest requests CPU
-only and disables the scheduler for single-node serving. It also carries the
-`networking.kserve.io/visibility: exposed` label, so KServe creates a managed external route (the
-same as ticking *Make deployed models available through an external route* in the dashboard).
+only and disables the scheduler for single-node serving. It also exposes the model *securely*:
+
+* `networking.kserve.io/visibility: exposed` — KServe creates a managed external route (the same as
+  ticking *Make deployed models available through an external route* in the dashboard).
+* `security.opendatahub.io/enable-auth: "true"` — that route *requires a bearer token* (the
+  dashboard's *Require token authentication*). ODH injects a `kube-rbac-proxy` sidecar in front of
+  vLLM. The manifest also creates a `ServiceAccount` (`qwen25-05b-caller`) plus a `Role`/`RoleBinding`
+  granting it the one permission the proxy checks — `get` on this `InferenceService` — so you have an
+  identity to call as.
+
+You will see all of these in Exercise 3.
 
 [source,bash,role="execute",subs="attributes"]
 ----
@@ -53,13 +62,16 @@ oc get inferenceservice qwen25-05b -n {project_name}
 == Exercise 2: Query the OpenAI-compatible API
 
 . Because the model is exposed (Exercise 1), `.status.url` is the *external* HTTPS route, reachable
-  from the bastion. Capture it and send a completion request:
+  from the bastion. It requires a token, so mint one for the `qwen25-05b-caller` ServiceAccount and
+  send it as a bearer token:
 +
 [source,bash,role="execute",subs="attributes"]
 ----
 URL=$(oc get inferenceservice qwen25-05b -n {project_name} -o jsonpath='{.status.url}')
 # -> https://qwen25-05b-{project_name}.apps.<cluster-domain>
+TOKEN=$(oc create token qwen25-05b-caller -n {project_name} --duration=1h)
 curl -sk $URL/v1/completions \
+  -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"model":"qwen25-05b","prompt":"Red Hat OpenShift AI is","max_tokens":16}'
 ----
@@ -81,33 +93,74 @@ every reply trips the route's 30s timeout.)
 
 === Verify
 
-* The call returns HTTP 200 with a JSON body containing generated text in `choices[0].text`.
-
-== Exercise 3: Inspect the KServe-managed external route
-
-By default a KServe RawDeployment `InferenceService` only creates an in-cluster (headless) Service.
-The `networking.kserve.io/visibility: exposed` label on the manifest (Exercise 1) tells KServe to
-also create and *own* an edge-terminated `Route` — exactly what the dashboard's *Make deployed
-models available through an external route* checkbox does. You never write the `Route` yourself, and
-KServe reconciles it with the `InferenceService`.
-
-. Confirm KServe created the route and that `.status.url` points at it:
+* The authenticated call returns HTTP 200 with generated text in `choices[0].text`.
+* The *same* request with no `Authorization` header returns *HTTP 401*:
 +
 [source,bash,role="execute",subs="attributes"]
 ----
+curl -sk -o /dev/null -w "%{http_code}\n" $URL/v1/models
+----
+
+== Exercise 3: Understand the access-control options
+
+The way you deployed the model in Exercise 1 is one point on a spectrum. Access is controlled by two
+independent settings on the `InferenceService`, so you pick the level that fits per model:
+
+[cols="1,3,2",options="header"]
+|===
+| Level | How | Reachable by
+
+| *Internal only*
+| Omit the `networking.kserve.io/visibility` label. Only the in-cluster headless Service exists.
+| Pods / in-cluster terminals (via `.status.address.url`)
+
+| *External, unauthenticated*
+| `networking.kserve.io/visibility: exposed` only.
+| *Anyone* who can reach cluster ingress — no credentials
+
+| *External + token auth* (what you deployed)
+| `visibility: exposed` *and* `security.opendatahub.io/enable-auth: "true"`.
+| Callers with a valid, RBAC-authorized ServiceAccount bearer token
+
+| *Governed (MaaS)* — xref:05-maas-governance.adoc[Module 5]
+| Republish as an `LLMInferenceService` behind the MaaS gateway.
+| Users with a self-service *API key*, subject to *rate limits*
+|===
+
+. Inspect what the manifest created. KServe owns the external `Route` (you never write it yourself),
+  and enabling auth injected a `kube-rbac-proxy` sidecar plus wired in the caller identity:
++
+[source,bash,role="execute",subs="attributes"]
+----
+# KServe-managed edge route + the external URL it points at
 oc get route -n {project_name} -l inferenceservice-name=qwen25-05b
 oc get inferenceservice qwen25-05b -n {project_name} -o jsonpath='{.status.url}{"\n"}'
+
+# The auth proxy runs alongside the vLLM container
+oc get pod -n {project_name} -l serving.kserve.io/inferenceservice=qwen25-05b \
+  -o jsonpath='{.items[0].spec.containers[*].name}{"\n"}'   # -> kserve-container kube-rbac-proxy ...
+
+# The identity + RBAC that make a token acceptable
+oc get sa qwen25-05b-caller -n {project_name}
+oc get rolebinding qwen25-05b-caller-inference-get -n {project_name}
 ----
+
+[NOTE]
+====
+The proxy authorizes each request with a SubjectAccessReview for
+`get inferenceservices/qwen25-05b`. That is why the caller needs the `Role`/`RoleBinding` — a token
+alone (authenticated but unauthorized) returns *HTTP 403*, not 200. To expose the model *without*
+auth instead, set `security.opendatahub.io/enable-auth` to `"false"` (or remove it); to make it
+internal-only, drop the `visibility` label.
+====
 
 [WARNING]
 ====
-This external route is *unauthenticated* — anyone who can reach the cluster's ingress can call the
-model. That is the same warning the dashboard shows when you tick the box. It is fine for a
-single-user workshop, but not for shared or production use.
-
-*Governed* external access — API-key authentication and token rate limiting — is what
-xref:05-maas-governance.adoc[Module 5] adds, by republishing the model through the *MaaS inference
-gateway* (a Gateway API gateway fronted by Red Hat Connectivity Link).
+Token auth protects the endpoint, but it is still *per-model, self-managed* security: you hand out
+ServiceAccount tokens and there is no rate limiting or usage accounting. For shared or production
+use you want *governed* access — self-service API keys, subscriptions, and token rate limits across
+many models behind one gateway. That is exactly what xref:05-maas-governance.adoc[Module 5] adds
+with {maas}, and it is where external access should ultimately be centralised.
 ====
 
 [NOTE]
@@ -119,8 +172,8 @@ traffic.
 
 === Verify
 
-* `oc get route -n {project_name}` shows a KServe-owned route for `qwen25-05b`, and `.status.url` is
-  the external `https://` endpoint you queried in Exercise 2.
+* The route exists, the pod lists a `kube-rbac-proxy` container, and the `ServiceAccount` and
+  `RoleBinding` are present — i.e. the model is externally reachable *and* token-protected.
 
 == Exercise 4: Deploy the vLLM simulator (GPU-free smoke test)
 
@@ -151,7 +204,8 @@ resource requests.
 == Module summary
 
 * You served `{cpu_model}` on vLLM on a CPU-only cluster and got a 200 from `/v1/completions`.
-* You reached the model over an external route.
+* You reached the model over a *token-authenticated* external route, and saw the access-control
+  options (internal / external / token auth / governed MaaS).
 * You deployed the simulator for GPU-free testing.
 
 == References

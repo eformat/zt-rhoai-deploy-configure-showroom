@@ -1,0 +1,13 @@
+---
+# The kube-rbac-proxy sidecar authorizes each request with a SubjectAccessReview for
+# `get inferenceservices.serving.kserve.io/qwen25-05b` in this namespace. This Role grants
+# exactly that verb on exactly that resource name — nothing more.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: qwen25-05b-inference-get
+rules:
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices"]
+    resourceNames: ["qwen25-05b"]
+    verbs: ["get"]
