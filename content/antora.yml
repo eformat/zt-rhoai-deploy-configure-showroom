@@ -31,12 +31,12 @@ asciidoc:
     openshift_cluster_ingress_domain: apps.cluster.example.com
     rhoai_dashboard_url: https://rhods-dashboard-redhat-ods-applications.apps.cluster.example.com
     # --- Workshop-specific endpoints ---
-    model_endpoint_url: https://opt-125m-rhoai-deploy.apps.cluster.example.com
+    model_endpoint_url: https://qwen25-05b-rhoai-deploy.apps.cluster.example.com
     maas_gateway_url: https://maas.apps.cluster.example.com
     registry_url: registry.apps.cluster.example.com
     metrics_console_url: https://console-openshift-console.apps.cluster.example.com/monitoring
     # --- Models ---
-    cpu_model: "facebook/opt-125m"
+    cpu_model: "Qwen2.5-0.5B-Instruct"
     sim_model: "vllm-simulator"
     # --- Source repo for manifests ---
     repo-url: "https://github.com/eformat/zt-rhoai-deploy-configure-showroom"

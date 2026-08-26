@@ -9,7 +9,7 @@ after each. Paths are referenced from the AsciiDoc pages and are relative to the
 | DataScienceCluster | `01-install/dsc` | Module 1 & 2 |
 | Disconnected mirror | `02-disconnected/` | Module 2 |
 | vLLM runtime + connection | `03-serving-platform/` | Module 3 |
-| vLLM models (opt-125m, simulator) | `04-vllm/` | Module 4 |
+| vLLM models (qwen25-05b, simulator) | `04-vllm/` | Module 4 |
 | MaaS (postgres, RHCL, gateway, enable, subscription) | `05-maas/` | Module 5 (TP) |
 | llm-d + WVA | `06-llmd/` | Module 6 (TP) |
 | User Workload Monitoring | `07-observability/uwm` | Module 7 |

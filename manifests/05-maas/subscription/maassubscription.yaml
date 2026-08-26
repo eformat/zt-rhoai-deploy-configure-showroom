@@ -9,7 +9,7 @@ spec:
   tenantRef:
     name: demo-tenant
   modelRefs:
-    - name: opt-125m
+    - name: qwen25-05b
   rateLimit:
     tokens: 1000
     window: 1m

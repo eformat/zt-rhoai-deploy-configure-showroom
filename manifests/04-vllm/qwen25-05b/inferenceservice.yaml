@@ -1,13 +1,14 @@
 ---
-# facebook/opt-125m served on the CPU vLLM runtime, single-node, no scheduler.
+# Qwen2.5-0.5B-Instruct served on the CPU vLLM runtime, single-node, no scheduler.
+# The OpenAI API model id is taken from the InferenceService name (qwen25-05b).
 # storageUri points at an OCI modelcar; swap for an s3:// URI backed by the
 # aws-connection-models Secret if you stage weights in object storage instead.
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  name: opt-125m
+  name: qwen25-05b
   annotations:
-    openshift.io/display-name: "facebook/opt-125m (CPU)"
+    openshift.io/display-name: "Qwen2.5-0.5B-Instruct (CPU)"
     serving.kserve.io/deploymentMode: RawDeployment
   labels:
     opendatahub.io/dashboard: "true"
@@ -19,7 +20,7 @@ spec:
       modelFormat:
         name: vLLM
       runtime: vllm-cpu-x86-runtime
-      storageUri: "oci://quay.io/redhat-ai-services/modelcar-catalog:opt-125m"
+      storageUri: "oci://quay.io/redhat-ai-services/modelcar-catalog:qwen2.5-0.5b-instruct"
       resources:
         requests:
           cpu: "2"

@@ -92,7 +92,7 @@ oc get scaledobject -n {project_name}
 for i in $(seq 1 500); do
   curl -sk -o /dev/null {model_endpoint_url}/v1/completions \
     -H "Content-Type: application/json" \
-    -d '{"model":"opt-125m","prompt":"scale test","max_tokens":64}' &
+    -d '{"model":"qwen25-05b","prompt":"scale test","max_tokens":64}' &
 done; wait
 ----
 

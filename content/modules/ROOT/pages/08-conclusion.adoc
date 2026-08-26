@@ -11,8 +11,8 @@ Congratulations — you have deployed, configured, served, governed, scaled, and
   `DataScienceCluster`.
 * *Module 2 — Install (Disconnected)*: Mirrored {rhoai-short} with oc-mirror v2 and installed from a
   local `CatalogSource`, plus the Quay proxy pull-through cache alternative.
-* *Module 3 — Model-Serving Platform*: Enabled KServe single-model serving, a vLLM runtime, and a
-  storage connection.
+* *Module 3 — Model-Serving Platform*: Enabled KServe single-model serving and made the pre-installed
+  vLLM CPU runtime available in your project.
 * *Module 4 — Serving with vLLM*: Served `{cpu_model}` and queried it via the OpenAI-compatible API.
 * *Module 5 — MaaS Governance* (Tech Preview): Governed access with subscriptions, API keys, and
   token rate limiting.

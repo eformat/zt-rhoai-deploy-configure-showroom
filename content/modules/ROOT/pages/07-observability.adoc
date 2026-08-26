@@ -41,19 +41,23 @@ This enables User Workload Monitoring so the remapped `kserve_vllm` metrics are 
 
 . In the {ocp} console, go to *Observe -> Metrics* and run queries such as:
 +
-[source,promql,role="execute"]
+[source,promql]
 ----
 rate(kserve_vllm:prompt_tokens_total[5m])
 ----
 +
-[source,promql,role="execute"]
+[source,promql]
 ----
 kserve_vllm:gpu_cache_usage_perc
 ----
++
+NOTE: These are PromQL expressions — paste them into the *Observe -> Metrics* query box in the
+console, not the terminal. On a CPU-only cluster the KV-cache metric is still reported under the
+legacy `gpu_cache_usage_perc` name.
 
 === Verify
 
-* A dashboard or Prometheus query returns data for the served `opt-125m` model.
+* A dashboard or Prometheus query returns data for the served `qwen25-05b` model.
 
 == Exercise 3: View MaaS telemetry
 

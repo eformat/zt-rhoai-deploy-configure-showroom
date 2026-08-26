@@ -38,10 +38,12 @@ The MaaS API needs its database *before* it is enabled, or `maas-api` will crash
 [source,bash,role="execute"]
 ----
 POSTGRES_PASSWORD=$(openssl rand -base64 16 | tr -d '=+/')
+# The Red Hat rhel9/postgresql-15 image reads POSTGRESQL_* env vars (not POSTGRES_*)
+# to create the user, password, and database on first start.
 oc create secret generic postgres-creds -n redhat-ods-applications \
-  --from-literal=POSTGRES_USER=maas \
-  --from-literal=POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
-  --from-literal=POSTGRES_DB=maas
+  --from-literal=POSTGRESQL_USER=maas \
+  --from-literal=POSTGRESQL_PASSWORD="${POSTGRES_PASSWORD}" \
+  --from-literal=POSTGRESQL_DATABASE=maas
 oc create secret generic maas-db-config -n redhat-ods-applications \
   --from-literal=DB_CONNECTION_URL="postgresql://maas:${POSTGRES_PASSWORD}@postgres:5432/maas?sslmode=disable"
 ----
@@ -140,7 +142,7 @@ Publish a model and govern it with a subscription and a token rate limit.
 oc apply -k manifests/05-maas/subscription -n {project_name}
 ----
 
-This creates a `Tenant`, a `MaaSModelRef` (pointing at the `opt-125m` model), a `MaaSSubscription`
+This creates a `Tenant`, a `MaaSModelRef` (pointing at the `qwen25-05b` model), a `MaaSSubscription`
 with a token rate limit, and a `MaaSAuthPolicy`.
 
 === Verify
@@ -154,7 +156,7 @@ export API_KEY=$(oc get secret maas-apikey-demo -n {project_name} -o jsonpath='{
 curl -sk $MAAS_GATEWAY/v1/completions \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"model":"opt-125m","prompt":"hello","max_tokens":8}'
+  -d '{"model":"qwen25-05b","prompt":"hello","max_tokens":8}'
 ----
 
 == Exercise 5: Demonstrate rate limiting
@@ -167,7 +169,7 @@ Send requests beyond the subscription's token limit and observe throttling. This
 for i in $(seq 1 50); do
   curl -sk -o /dev/null -w "%{http_code}\n" $MAAS_GATEWAY/v1/completions \
     -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
-    -d '{"model":"opt-125m","prompt":"hi","max_tokens":32}'
+    -d '{"model":"qwen25-05b","prompt":"hi","max_tokens":32}'
 done | sort | uniq -c
 ----
 

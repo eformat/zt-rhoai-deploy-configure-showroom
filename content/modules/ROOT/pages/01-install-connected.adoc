@@ -26,11 +26,13 @@ By the end of this module you will be able to:
 oc apply -k manifests/01-install/operator
 ----
 
-. Watch the operator ClusterServiceVersion (CSV) reach `Succeeded`:
+. Wait for the operator ClusterServiceVersion (CSV) to reach `Succeeded`:
 +
 [source,bash,role="execute"]
 ----
-oc get csv -n redhat-ods-operator -w
+oc wait csv -n redhat-ods-operator \
+  -l operators.coreos.com/rhods-operator.redhat-ods-operator \
+  --for=jsonpath='{.status.phase}'=Succeeded --timeout=15m
 ----
 
 === Verify

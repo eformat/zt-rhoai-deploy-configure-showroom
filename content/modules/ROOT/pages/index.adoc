@@ -41,8 +41,9 @@ and operate {rhoai} {rhoai_version}.
 == Prerequisites
 
 * Cluster-admin on an {ocp} {ocp_version} cluster
-* S3-compatible object storage and PostgreSQL 14+ available (for later modules)
 * Ability to install operators: {rhcl} (Kuadrant/Authorino), cert-manager, Leader Worker Set
+* No object storage required — model weights are pulled from public OCI modelcar images, and the
+  MaaS PostgreSQL database is deployed in-cluster during Module 5
 
 [IMPORTANT]
 ====

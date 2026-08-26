@@ -5,14 +5,14 @@
 apiVersion: serving.kserve.io/v1alpha1
 kind: LLMInferenceService
 metadata:
-  name: opt-125m-llmd
+  name: qwen25-05b-llmd
   namespace: rhoai-deploy
   labels:
     app.kubernetes.io/part-of: llm-d
 spec:
   model:
-    uri: "oci://quay.io/redhat-ai-services/modelcar-catalog:opt-125m"
-    name: opt-125m
+    uri: "oci://quay.io/redhat-ai-services/modelcar-catalog:qwen2.5-0.5b-instruct"
+    name: qwen25-05b
   replicas: 1
   router:
     scheduler: {}

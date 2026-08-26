@@ -5,11 +5,11 @@
 apiVersion: llmd.ai/v1alpha1
 kind: VariantAutoscaling
 metadata:
-  name: opt-125m-wva
+  name: qwen25-05b-wva
   namespace: rhoai-deploy
 spec:
   targetRef:
-    name: opt-125m-llmd
+    name: qwen25-05b-llmd
     kind: LLMInferenceService
   minReplicas: 1
   maxReplicas: 4

@@ -29,14 +29,14 @@ only and disables the scheduler for single-node serving.
 
 [source,bash,role="execute",subs="attributes"]
 ----
-oc apply -k manifests/04-vllm/opt-125m -n {project_name}
+oc apply -k manifests/04-vllm/qwen25-05b -n {project_name}
 ----
 
 Wait for the model to become ready:
 
 [source,bash,role="execute",subs="attributes"]
 ----
-oc wait inferenceservice/opt-125m -n {project_name} --for=condition=Ready --timeout=15m
+oc wait inferenceservice/qwen25-05b -n {project_name} --for=condition=Ready --timeout=15m
 ----
 
 === Verify
@@ -45,7 +45,7 @@ oc wait inferenceservice/opt-125m -n {project_name} --for=condition=Ready --time
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-oc get inferenceservice opt-125m -n {project_name}
+oc get inferenceservice qwen25-05b -n {project_name}
 ----
 
 == Exercise 2: Query the OpenAI-compatible API
@@ -54,10 +54,10 @@ oc get inferenceservice opt-125m -n {project_name}
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-URL=$(oc get inferenceservice opt-125m -n {project_name} -o jsonpath='{.status.url}')
+URL=$(oc get inferenceservice qwen25-05b -n {project_name} -o jsonpath='{.status.url}')
 curl -sk $URL/v1/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"opt-125m","prompt":"Red Hat OpenShift AI is","max_tokens":16}'
+  -d '{"model":"qwen25-05b","prompt":"Red Hat OpenShift AI is","max_tokens":16}'
 ----
 
 === Verify
@@ -71,13 +71,13 @@ curl -sk $URL/v1/completions \
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-oc get route -n {project_name} | grep opt-125m
+oc get route -n {project_name} | grep qwen25-05b
 curl -sk {model_endpoint_url}/v1/models
 ----
 
 === Verify
 
-* The model is reachable through the external route and `/v1/models` lists `opt-125m`.
+* The model is reachable through the external route and `/v1/models` lists `qwen25-05b`.
 
 == Exercise 4: Deploy the vLLM simulator (GPU-free smoke test)
 
@@ -98,7 +98,7 @@ oc wait inferenceservice/{sim_model} -n {project_name} --for=condition=Ready --t
 
 [source,bash,role="execute",subs="attributes"]
 ----
-oc get inferenceservice opt-125m -n {project_name} -o yaml | less
+oc get inferenceservice qwen25-05b -n {project_name} -o yaml | less
 oc get servingruntime -n {project_name} -o yaml | less
 ----
 
