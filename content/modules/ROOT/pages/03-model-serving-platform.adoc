@@ -81,6 +81,20 @@ oc process -n redhat-ods-applications vllm-cpu-x86-runtime-template \
   | oc apply -n {project_name} -f -
 ----
 
+When the dashboard instantiates a runtime from a template it stamps two annotations onto the
+`ServingRuntime` recording which template it came from. `oc process` does not add them, so without
+this step the *Models -> Deployments* list shows the model under *Unknown Serving Runtime*. Stamp
+them yourself so the dashboard resolves the runtime name (this is cosmetic — the model serves either
+way):
+
+[source,bash,role="execute",subs="attributes"]
+----
+oc annotate servingruntime vllm-cpu-x86-runtime -n {project_name} \
+  opendatahub.io/template-name=vllm-cpu-x86-runtime-template \
+  "opendatahub.io/template-display-name=vLLM CPU (x86) ServingRuntime for KServe - Tech Preview" \
+  --overwrite
+----
+
 === Verify
 
 * The `vllm-cpu-x86-runtime` `ServingRuntime` now exists in the project:

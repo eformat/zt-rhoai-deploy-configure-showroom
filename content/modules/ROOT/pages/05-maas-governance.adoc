@@ -491,7 +491,14 @@ echo "API key: ${API_KEY:0:12}..."
 +
 [source,bash,role="execute"]
 ----
-MODEL_JSON=$(curl -sSk "${HOST}/maas-api/v1/models" -H "Authorization: Bearer ${API_KEY}")
+# The gateway and maas-api may still be warming up the first time you call them, so the very first
+# /models request can return a transient non-JSON body (jq then errors with "Invalid numeric
+# literal"). Retry until the catalog parses and reports a ready model.
+for attempt in $(seq 1 10); do
+  MODEL_JSON=$(curl -sSk "${HOST}/maas-api/v1/models" -H "Authorization: Bearer ${API_KEY}")
+  echo "$MODEL_JSON" | jq -e '[.data[]? | select(.ready==true)][0]' >/dev/null 2>&1 && break
+  echo "models catalog not ready yet (attempt ${attempt}); retrying..."; sleep 3
+done
 export MODEL_NAME=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.ready==true)][0].id')
 # The catalog also returns each model's gateway path (/<namespace>/<LLMInferenceService>). Chat
 # requests go to that path, NOT the bare /v1/chat/completions — the gateway routes by prefix and
@@ -503,6 +510,16 @@ curl -sSk "${HOST}${MODEL_PATH}/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -d "{\"model\":\"${MODEL_NAME}\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}],\"max_tokens\":50}" | jq .
 ----
+
+[NOTE]
+====
+*The first call can fail while the gateway warms up.* Immediately after the MaaS stack starts (or a
+key is freshly minted), the very first `/maas-api/v1/models` request may return a transient non-JSON
+body — `jq` reports `Invalid numeric literal` and `MODEL_NAME`/`MODEL_PATH` come back empty. This is
+warm-up, not a failure: the retry loop above re-fetches until the catalog parses, and subsequent
+calls succeed. Likewise, the first *chat* completion can be slow (cold vLLM engine, ~30s) and may
+even time out once — run it again and it returns in ~2s.
+====
 
 === Verify
 

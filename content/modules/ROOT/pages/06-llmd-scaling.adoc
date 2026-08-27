@@ -224,7 +224,13 @@ export API_KEY=$(curl -sSk -X POST "${HOST}/maas-api/v1/api-keys" \
   -H "Authorization: Bearer $(oc whoami -t)" \
   -H "Content-Type: application/json" \
   -d '{"name":"llmd-scale-key","expiresIn":"1h","subscription":"qwen25-05b-llmd-demo"}' | jq -r .key)
-MODEL_JSON=$(curl -sSk "${HOST}/maas-api/v1/models" -H "Authorization: Bearer ${API_KEY}")
+# The gateway/maas-api may still be warming up, so the first /models call can return a transient
+# non-JSON body (jq errors with "Invalid numeric literal"). Retry until the llm-d model appears.
+for attempt in $(seq 1 10); do
+  MODEL_JSON=$(curl -sSk "${HOST}/maas-api/v1/models" -H "Authorization: Bearer ${API_KEY}")
+  echo "$MODEL_JSON" | jq -e '[.data[]? | select(.url | test("qwen25-05b-llmd"))][0]' >/dev/null 2>&1 && break
+  echo "llm-d model not in catalog yet (attempt ${attempt}); retrying..."; sleep 3
+done
 # Select the llm-d model by its gateway path (both qwen models share the id "qwen25-05b").
 export MODEL_URL=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.url | test("qwen25-05b-llmd"))][0].url')
 export MODEL_NAME=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.url | test("qwen25-05b-llmd"))][0].id')
