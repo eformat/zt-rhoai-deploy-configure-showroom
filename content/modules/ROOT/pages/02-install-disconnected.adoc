@@ -19,12 +19,65 @@ Run whichever path matches your target environment; you do not need both.
 
 By the end of this module you will be able to:
 
-* Mirror the {rhoai-short} operator and dependent images with oc-mirror v2
+* Install the oc-mirror v2 CLI and provide it registry credentials from the cluster pull secret
+* Pin the imageset configuration to the cluster's OpenShift version
+* Mirror the {rhoai-short} operator and dependent images with oc-mirror v2 (to disk, then to a registry)
 * Install a local `CatalogSource` with an `ImageDigestMirrorSet` / `ImageTagMirrorSet`
 * Complete a `DataScienceCluster` install offline
 * Use a Quay.io proxy pull-through cache as an alternative mirroring approach
 
-== Exercise 1: Mirror images with oc-mirror v2
+== Exercise 1: Prepare the mirror host
+
+Set up the connected host (bastion) that will pull images: install the oc-mirror v2 CLI, give it
+registry credentials, and pin the imageset configuration to your cluster's OpenShift version.
+
+. Confirm the cluster's OpenShift version and pin the imageset config to match. The operator catalog
+  tag *must* match the cluster minor (`v4.22`), and the platform release should match the running
+  z-stream:
++
+[source,bash,role="execute"]
+----
+oc get clusterversion version -o jsonpath='{.status.desired.version}{"\n"}'
+----
++
+Check the printed version against `manifests/02-disconnected/imageset-config.yaml`. If it differs
+from the pinned values, edit the `platform.channels` entry (`name: stable-4.x`, `minVersion`,
+`maxVersion`) and the operator `catalog:` tag (`redhat-operator-index:v4.x`) so both track your
+cluster. This lab is pinned to `stable-4.22` / `4.22.10` and catalog `v4.22`.
+
+. Install the oc-mirror v2 CLI:
++
+[source,bash,role="execute"]
+----
+curl -L -O https://mirror.openshift.com/pub/cgw/oc-mirror/latest/oc-mirror-rhel9-linux-amd64.tar.gz
+tar xzvf oc-mirror-rhel9-linux-amd64.tar.gz
+sudo mv oc-mirror /usr/local/bin/
+oc-mirror --v2 --help | head -n 1
+----
+
+. Provide registry credentials. oc-mirror reads `$HOME/.docker/config.json`; seed it from the
+  cluster's own pull secret so pulls from `registry.redhat.io` (and pushes to your mirror) are
+  authenticated:
++
+[source,bash,role="execute"]
+----
+mkdir -v $HOME/.docker
+oc get secret pull-secret -n openshift-config \
+  --template='{{index .data ".dockerconfigjson" | base64decode}}' > $HOME/.docker/config.json
+----
+
+=== Verify
+
+* `oc-mirror --v2 --help` runs, `$HOME/.docker/config.json` exists and contains a
+  `registry.redhat.io` entry, and the version from `oc get clusterversion` matches the pins in
+  `imageset-config.yaml`.
+
+== Exercise 2: Mirror images with oc-mirror v2
+
+This lab uses the two-phase disk workflow: mirror *to disk* on the connected host, then push the
+saved images *to your private registry* (which the air-gapped cluster can reach). On a host with
+simultaneous internet and registry access you can collapse these into a single mirror-to-mirror run
+(`docker://{registry_url}` in place of the `file://` target).
 
 . Review the imageset configuration (RHOAI operator + dependencies):
 +
@@ -33,22 +86,33 @@ By the end of this module you will be able to:
 cat manifests/02-disconnected/imageset-config.yaml
 ----
 
-. Mirror to your private registry (mirror-to-mirror):
+. Mirror to disk — pulls the RHOAI catalog, operator, and dependent images into a local workspace:
++
+[source,bash,role="execute"]
+----
+oc-mirror --config manifests/02-disconnected/imageset-config.yaml \
+  file://$HOME/oc-mirror-workspace --v2
+----
+
+. Push the saved images from disk to your private registry (run this from a host that can reach the
+  registry; move the `oc-mirror-workspace` directory across the air gap first if needed):
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-oc mirror --v2 -c manifests/02-disconnected/imageset-config.yaml \
-  --workspace file://$HOME/oc-mirror-workspace \
-  docker://{registry_url}
+oc-mirror --config manifests/02-disconnected/imageset-config.yaml \
+  --from file://$HOME/oc-mirror-workspace \
+  docker://{registry_url} --v2
 ----
 
 === Verify
 
-* The target registry `{registry_url}` contains the mirrored RHOAI catalog and images
-  (oc-mirror prints a results summary and generates cluster resources under
-  `oc-mirror-workspace/working-dir/cluster-resources/`).
+* The mirror-to-disk run reports `mirror time` with no collection errors, and
+  `$HOME/oc-mirror-workspace/working-dir/` is populated.
+* After the disk-to-mirror run, the target registry `{registry_url}` contains the mirrored RHOAI
+  catalog and images, and oc-mirror generates cluster resources under
+  `oc-mirror-workspace/working-dir/cluster-resources/`.
 
-== Exercise 2: Install the local CatalogSource
+== Exercise 3: Install the local CatalogSource
 
 oc-mirror v2 generates the `CatalogSource` and mirror resources. Apply them so the operator appears
 in OperatorHub offline.
@@ -78,7 +142,7 @@ oc get catalogsource -n openshift-marketplace
 oc get packagemanifest | grep rhods-operator
 ----
 
-== Exercise 3: Complete the DataScienceCluster offline
+== Exercise 4: Complete the DataScienceCluster offline
 
 . Install the operator from the local catalog and create the DSC:
 +
@@ -100,7 +164,7 @@ oc wait datasciencecluster/default-dsc --for=condition=Ready --timeout=20m
 oc get datasciencecluster default-dsc -o jsonpath='{.status.phase}{"\n"}'
 ----
 
-== Exercise 4 (Alternative): Quay.io proxy pull-through cache
+== Exercise 5 (Alternative): Quay.io proxy pull-through cache
 
 For lab environments, a Quay.io transparent proxy pull-through cache avoids a full oc-mirror run.
 
@@ -132,5 +196,6 @@ oc apply -f manifests/02-disconnected/proxy-cache-idms.yaml
 ** https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4/html/customize_models_for_gen_ai_and_agentic_ai_applications/index[Customize Models for Gen AI and Agentic AI Applications] (mirroring the Red Hat Python index)
 * Reference code:
 ** https://github.com/rh-aiservices-bu/disconnected-rhoai[rh-aiservices-bu/disconnected-rhoai]
+** https://github.com/naps-product-sa/ocp4-disconnected-workshop[naps-product-sa/ocp4-disconnected-workshop] (https://naps-product-sa.github.io/ocp4-disconnected-workshop[workshop guide] — oc-mirror v2 disk workflow)
 
 Continue to xref:03-model-serving-platform.adoc[Module 3: Model-Serving Platform].
