@@ -19,7 +19,15 @@ spec:
   model:
     uri: "oci://quay.io/redhat-ai-services/modelcar-catalog:qwen2.5-0.5b-instruct"
     name: qwen25-05b
-  replicas: 1
+  # spec.replicas is intentionally OMITTED so the external KEDA ScaledObject
+  # (manifests/06-llmd/autoscaling-keda) can own the replica count. KServe's llm-d controller only
+  # yields the workload Deployment's replica count to an external autoscaler when spec.replicas is
+  # unset (PreserveDeploymentReplicas, kserve pkg/controller/v1alpha2/llmisvc/workload.go); if you
+  # set it, the controller rewrites the count on every reconcile and fights KEDA — new pods go
+  # Terminating and the count snaps back (the churn seen under load). With it unset, the apiserver
+  # defaults the Deployment to 1 on create and KEDA scales from there. Do NOT add spec.replicas back.
+  # (The GPU-only alternative is spec.scaling.wva — Exercise 6 — which is mutually exclusive with
+  # spec.replicas and requires the Workload Variant Autoscaler, absent on this CPU build.)
   # Route through the MaaS gateway created in Module 5 instead of standing up a dedicated
   # inference gateway (openshift-ai-inference). scheduler:{} brings up the llm-d Endpoint Picker
   # and an InferencePool; route:{} creates the HTTPRoute; gateway.refs attaches it to the already

@@ -135,6 +135,18 @@ oc get llminferenceservice qwen25-05b-llmd -n {project_name}
 ----
 oc get deploy -n {project_name} -l app.kubernetes.io/name=qwen25-05b-llmd,kserve.io/component=workload
 ----
++
+[NOTE]
+====
+*The `LLMInferenceService` deliberately omits `spec.replicas`* so the KEDA `ScaledObject` in
+Exercise 4 can own the replica count. KServe's llm-d controller only yields the workload Deployment's
+replica count to an external autoscaler when `spec.replicas` is unset; the apiserver then defaults the
+Deployment to `1` on create, and KEDA scales from there. If you *set* `spec.replicas`, the controller
+rewrites the count on every reconcile and fights KEDA — newly added pods go `Terminating` and the
+count snaps back to your fixed value (queue depth builds but replicas never hold). *Do not add
+`spec.replicas` to this manifest.* The GPU-only `spec.scaling.wva` form (<<Exercise 6 (Reference):
+Workload Variant Autoscaler on GPU>>) is the mutually-exclusive alternative.
+====
 
 == Exercise 3: Publish the scaling model through MaaS
 
@@ -283,21 +295,30 @@ python3 manifests/06-llmd/load/load-test.py -c 16 -d 300 > /tmp/llmd-load.log 2>
 +
 [NOTE]
 ====
-*A one-shot burst fires every request at once and drains before the ~30s user-workload-monitoring scrape 
-and 15s KEDA poll can observe the queue — so the metric never crosses the threshold and nothing scales. 
-The burst also *under-reports tokens*: at a large `max_tokens` the completions run past the gateway's 30s 
-route timeout and return `504`/`500` with no `usage` body, so Limitador meters *0 tokens* for them even 
-though each still counts as an authorized request (this is the "many requests, 100% success, 0 tokens" you would see
-on the dashboard). The generator instead sustains the queue and keeps `--max-tokens` small (`32`) so
+A one-shot burst fires every request at
+once and drains before the ~30s user-workload-monitoring scrape and 15s KEDA poll can observe the
+queue — so the metric never crosses the threshold and nothing scales. The burst also _under-reports
+tokens_: at a large `max_tokens` the completions run past the gateway's 30s route timeout and return
+`504`/`500` with no `usage` body, so Limitador meters *0 tokens* for them even though each still
+counts as an authorized request (this is the "many requests, 100% success, 0 tokens" you would see on
+the dashboard). The generator instead sustains the queue and keeps `--max-tokens` small (`32`) so
 completions finish under the timeout and their tokens are metered.
+
+With `-c 16` against `--max-num-seqs=8`, roughly 8 requests stay queued, so the deployment scales to
+2 replicas (`ceil(8 / threshold 5)`). To push toward `maxReplicaCount` (4), raise concurrency —
+`-c 32` keeps ~24 waiting (`ceil(24 / 5) = 4`).
 ====
 
-. Watch the replica count climb as the queue-depth threshold is exceeded, then settle back after
-  the cooldown period once the load finishes (tail `/tmp/llmd-load.log` in another terminal to follow
-  the generator's `ok`/`throttled`/`other` tally):
+. Watch the HPA drive the replica count. As `num_requests_waiting` crosses the threshold, the HPA's
+  `TARGETS` climbs above `5` and `REPLICAS` rises (to `2` at `-c 16`), then settles back to
+  `minReplicaCount` (`1`) after the load stops and the 60s cooldown elapses. Watch the HPA and the
+  Deployment together (tail `/tmp/llmd-load.log` in another terminal for the generator's
+  `ok`/`throttled`/`other` tally):
 +
 [source,bash,role="execute",subs="attributes"]
 ----
+oc get hpa keda-hpa-qwen25-05b-llmd-keda -n {project_name} -w
+# or watch the Deployment's replica count directly:
 oc get deploy qwen25-05b-llmd-kserve -n {project_name} -w
 ----
 
