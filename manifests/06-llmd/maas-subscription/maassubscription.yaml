@@ -1,0 +1,39 @@
+---
+# High-limit subscription for the Module 6 autoscaling load test. Unlike the Module 5 subscription
+# (qwen25-05b-demo, 100 tokens/1m — deliberately drives 429s to demo rate limiting), this grants an
+# effectively unlimited budget so the load generator can build a request queue and let KEDA scale on
+# num_requests_waiting WITHOUT being throttled. Kept as a SEPARATE subscription so Module 5's
+# rate-limit demo is left untouched.
+#
+# THIS OBJECT lives in `models-as-a-service`, NOT the workshop project: maas-api only reads
+# subscriptions from the namespace named by its MAAS_SUBSCRIPTION_NAMESPACE env (models-as-a-service).
+# A subscription applied into any other namespace is silently ignored and `/maas-api/v1/models`
+# returns an empty catalog.
+#
+# owner.groups grants the subscription to `system:authenticated:oauth` — the group the OpenShift
+# OAuth/OIDC identity actually presents to Authorino. Plain `system:authenticated` never matches the
+# generated AuthPolicy's `allowed_groups`, so the request is denied (403).
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSSubscription
+metadata:
+  name: qwen25-05b-llmd-demo
+  namespace: models-as-a-service
+spec:
+  owner:
+    groups:
+      - name: system:authenticated:oauth
+  # Placeholder tokenMetadata keeps the TelemetryPolicy CEL label expressions valid so Limitador
+  # records the authorized_hits counter (RHCL 1.4.2 evaluates the costCenter/organizationId label
+  # expressions strictly — see the Module 5 subscription for the full explanation). Without this the
+  # llm-d model's token panels in the RHOAI Usage dashboard stay empty.
+  tokenMetadata:
+    costCenter: na
+    organizationId: na
+  modelRefs:
+    - name: qwen25-05b-llmd
+      namespace: rhoai-deploy
+      tokenRateLimits:
+        # Effectively unlimited for a 0.5B CPU model — the scaling test is governed and metered
+        # (Limitador still counts authorized_hits) but never blocked by 429s.
+        - limit: 5000000
+          window: 1m

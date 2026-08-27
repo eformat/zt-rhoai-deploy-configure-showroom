@@ -20,8 +20,20 @@ spec:
     uri: "oci://quay.io/redhat-ai-services/modelcar-catalog:qwen2.5-0.5b-instruct"
     name: qwen25-05b
   replicas: 1
+  # Route through the MaaS gateway created in Module 5 instead of standing up a dedicated
+  # inference gateway (openshift-ai-inference). scheduler:{} brings up the llm-d Endpoint Picker
+  # and an InferencePool; route:{} creates the HTTPRoute; gateway.refs attaches it to the already
+  # running maas-default-gateway. This reuses one envoy proxy (saves CPU) and puts llm-d traffic
+  # under MaaS governance, so the Limitador per-subscription token metrics (Module 5, Exercise 8)
+  # cover this model too. The gateway default-denies, so the model needs a MaaSModelRef +
+  # MaaSSubscription (see ../maas-subscription) or requests are rate-limited before they can queue.
   router:
     scheduler: {}
+    route: {}
+    gateway:
+      refs:
+        - name: maas-default-gateway
+          namespace: openshift-ingress
   template:
     containers:
       - name: main

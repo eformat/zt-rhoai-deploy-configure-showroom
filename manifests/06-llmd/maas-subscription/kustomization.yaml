@@ -1,0 +1,12 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# MaaS governance for the Module 6 llm-d scaling model. The model routes through the same
+# maas-default-gateway as Module 5 (see ../service/llminferenceservice.yaml router), and this adds a
+# dedicated high-limit subscription so the autoscaling load test flows freely while Limitador still
+# meters it — giving the Module 5 Exercise 8 telemetry panels coverage of the llm-d model for free.
+resources:
+  - maasmodelref.yaml
+  - maassubscription.yaml
+  - maasauthpolicy.yaml

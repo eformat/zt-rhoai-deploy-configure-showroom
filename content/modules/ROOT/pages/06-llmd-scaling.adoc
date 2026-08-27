@@ -7,14 +7,16 @@
 Single-replica serving does not scale to real traffic. {rhoai} {rhoai_version} runs distributed
 inference with *llm-d*, and this module scales it automatically with the *Custom Metrics
 Autoscaler* (KEDA) — adding replicas from an inference signal (queue depth) rather than generic
-CPU/memory, and without requiring a GPU.
+CPU/memory, and without requiring a GPU. The model is published through the *MaaS gateway* from
+xref:05-maas-governance.adoc[Module 5], so the scaling traffic is governed and its token usage
+lands in the same per-subscription telemetry — the autoscaler comes with observability for free.
 
 [NOTE]
 ====
 *Two autoscalers, one goal.* On GPU clusters {rhoai} {rhoai_version} offers the *Workload Variant
 Autoscaler (WVA)*, which scales llm-d from KV-cache and queue signals and internally creates a KEDA
 `ScaledObject` for you. This CPU-only workshop drives that same KEDA layer directly. WVA is covered
-as GPU reference in <<Exercise 5 (Reference): Workload Variant Autoscaler on GPU>>.
+as GPU reference in <<Exercise 6 (Reference): Workload Variant Autoscaler on GPU>>.
 ====
 
 == Learning objectives
@@ -22,15 +24,20 @@ as GPU reference in <<Exercise 5 (Reference): Workload Variant Autoscaler on GPU
 By the end of this module you will be able to:
 
 * Install the Custom Metrics Autoscaler (the llm-d serving operators come from Module 5)
-* Deploy a model as an `LLMInferenceService`
+* Deploy a model as an `LLMInferenceService` attached to the MaaS gateway
+* Publish it through MaaS with a dedicated high-limit subscription for load testing
 * Authorize KEDA to read inference metrics from user-workload monitoring
 * Scale the deployment with a KEDA `ScaledObject` driven by vLLM queue depth
-* Drive load and observe a replica change, and correlate it with the metrics that drove it
+* Drive load through the MaaS gateway and observe a replica change, correlating it with the queue
+  and KV-cache metrics — and the per-subscription token telemetry — that drove it
 * Understand how the Workload Variant Autoscaler provides the same capability on GPU
 
 == Prerequisites
 
 * The model-serving platform is enabled (xref:03-model-serving-platform.adoc[Module 3])
+* {maas} enabled with the gateway running (xref:05-maas-governance.adoc[Module 5]) — this module's
+  `LLMInferenceService` attaches to `maas-default-gateway` rather than a dedicated inference
+  gateway, so its traffic is governed and metered like every other MaaS model
 * User Workload Monitoring enabled, so vLLM metrics reach Thanos
   (xref:05-maas-governance.adoc[Module 5, Exercise 3]) — KEDA scales on those metrics
 
@@ -86,6 +93,13 @@ Deploy the CPU model as an `LLMInferenceService`, which brings up the llm-d Endp
 and vLLM pods. The manifest carries `prometheus.io/scrape` annotations so user-workload monitoring
 collects the queue-depth metric KEDA scales on.
 
+The service's `router` attaches to the *existing* `maas-default-gateway` from Module 5
+(`scheduler: {}` brings up the EPP and InferencePool, `route: {}` creates the HTTPRoute, and
+`gateway.refs` binds it to that gateway) rather than standing up a dedicated `openshift-ai-inference`
+gateway. This reuses one Envoy proxy — saving CPU on a single node — and puts the model under MaaS
+governance, so you publish it with a subscription in Exercise 3 and its token usage flows into the
+Module 5 telemetry.
+
 [source,bash,role="execute",subs="attributes"]
 ----
 oc apply -k manifests/06-llmd/service -n {project_name}
@@ -101,7 +115,17 @@ oc get pods -n {project_name} -w
 oc get pods -n {project_name} -l app.kubernetes.io/part-of=llminferenceservice
 ----
 
-* Note the Deployment name KServe created — the autoscaler targets it in the next exercise
+* The `LLMInferenceService` reaches `Ready=True` — its HTTPRoute is accepted by
+  `maas-default-gateway` (a `WaitingForGateway` status here means the router is not attached to a
+  running gateway; confirm Module 5's gateway is `Programmed`):
++
+[source,bash,role="execute",subs="attributes"]
+----
+oc wait --for=condition=Ready llminferenceservice/qwen25-05b-llmd -n {project_name} --timeout=15m
+oc get llminferenceservice qwen25-05b-llmd -n {project_name}
+----
+
+* Note the Deployment name KServe created — the autoscaler targets it in Exercise 4
   (expected: `qwen25-05b-llmd-kserve`):
 +
 [source,bash,role="execute",subs="attributes"]
@@ -109,7 +133,47 @@ oc get pods -n {project_name} -l app.kubernetes.io/part-of=llminferenceservice
 oc get deploy -n {project_name} -l app.kubernetes.io/part-of=llminferenceservice
 ----
 
-== Exercise 3: Autoscale with KEDA
+== Exercise 3: Publish the scaling model through MaaS
+
+The model now serves behind the MaaS gateway, which *default-denies* — every request needs an API
+key bound to a subscription, or it is rejected before it can reach the queue. Publish the model and
+grant it a budget so the load test in Exercise 5 can build queue depth freely.
+
+. Apply the MaaS governance CRs for the llm-d model:
++
+[source,bash,role="execute"]
+----
+oc apply -k manifests/06-llmd/maas-subscription
+----
++
+This creates a `MaaSModelRef` (pointing at the `qwen25-05b-llmd` `LLMInferenceService`), a
+`MaaSSubscription` (`qwen25-05b-llmd-demo`), and a `MaaSAuthPolicy`. As in Module 5, the
+`MaaSModelRef` lands in the workshop project while the subscription and auth policy land in
+`models-as-a-service` (the only namespace `maas-api` reads subscriptions from), and both grant the
+`system:authenticated:oauth` group.
+
+[NOTE]
+====
+*Why a separate, high-limit subscription?* Module 5's `qwen25-05b-demo` subscription is capped at
+100 tokens / 1 minute to *demonstrate* rate limiting (HTTP 429). That cap would throttle this load
+test before a request queue could form. `qwen25-05b-llmd-demo` grants an effectively unlimited
+budget (5,000,000 tokens / 1 minute) so the load generator builds `num_requests_waiting` for KEDA
+to scale on *without* being throttled — while Limitador still meters it, so the token telemetry
+stays populated. Module 5's rate-limit demo is left untouched.
+====
+
+=== Verify
+
+* All three MaaS custom resources are `Active`/`Ready`, and the model's gateway endpoint is
+  published:
++
+[source,bash,role="execute",subs="attributes"]
+----
+oc get maasmodelref qwen25-05b-llmd -n {project_name}
+oc get maassubscription qwen25-05b-llmd-demo maasauthpolicy qwen25-05b-llmd-auth -n models-as-a-service
+----
+
+== Exercise 4: Autoscale with KEDA
 
 Grant KEDA read access to user-workload monitoring, then create a `ScaledObject` that scales the
 vLLM Deployment on queue depth (`vllm:num_requests_waiting`) pulled from Thanos.
@@ -144,16 +208,41 @@ oc get scaledobject -n {project_name}
 oc get hpa -n {project_name}
 ----
 
-== Exercise 4: Drive load and observe scaling
+== Exercise 5: Drive load and observe scaling
 
-. Generate load against the model to build queue depth:
+Load goes through the MaaS gateway, so first mint an API key bound to the high-limit subscription
+from Exercise 3, then discover the model's gateway path — the same flow as
+xref:05-maas-governance.adoc[Module 5, Exercise 6], but selecting the `qwen25-05b-llmd` model.
+
+. Mint an API key and resolve the model's gateway path:
 +
-[source,bash,role="execute",subs="attributes"]
+[source,bash,role="execute"]
+----
+export CLUSTER_DOMAIN=$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+export HOST="https://maas.${CLUSTER_DOMAIN}"
+export API_KEY=$(curl -sSk -X POST "${HOST}/maas-api/v1/api-keys" \
+  -H "Authorization: Bearer $(oc whoami -t)" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"llmd-scale-key","expiresIn":"1h","subscription":"qwen25-05b-llmd-demo"}' | jq -r .key)
+MODEL_JSON=$(curl -sSk "${HOST}/maas-api/v1/models" -H "Authorization: Bearer ${API_KEY}")
+# Select the llm-d model by its gateway path (both qwen models share the id "qwen25-05b").
+export MODEL_URL=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.url | test("qwen25-05b-llmd"))][0].url')
+export MODEL_NAME=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.url | test("qwen25-05b-llmd"))][0].id')
+export MODEL_PATH=$(echo "$MODEL_URL" | sed -E 's#^https?://[^/]+##')
+echo "Model: $MODEL_NAME  ->  ${HOST}${MODEL_PATH}"
+----
+
+. Generate concurrent load through the gateway to build queue depth. The requests run in parallel so
+  they queue on the vLLM engine (`--max-num-seqs=8`), which is what pushes `num_requests_waiting`
+  past the `ScaledObject` threshold:
++
+[source,bash,role="execute"]
 ----
 for i in $(seq 1 500); do
-  curl -sk -o /dev/null {model_endpoint_url}/v1/completions \
+  curl -sSk -o /dev/null "${HOST}${MODEL_PATH}/v1/completions" \
+    -H "Authorization: Bearer ${API_KEY}" \
     -H "Content-Type: application/json" \
-    -d '{"model":"qwen25-05b","prompt":"scale test","max_tokens":64}' &
+    -d "{\"model\":\"${MODEL_NAME}\",\"prompt\":\"scale test\",\"max_tokens\":64}" &
 done; wait
 ----
 
@@ -176,12 +265,22 @@ kserve_vllm:num_requests_waiting
 +
 [source,promql]
 ----
-kserve_vllm:gpu_cache_usage_perc
+kserve_vllm:kv_cache_usage_perc
 ----
 +
 These are the same user-workload metrics KEDA reads from Thanos (enabled in
 xref:05-maas-governance.adoc[Module 5, Exercise 3]); the replica count rises after
 `num_requests_waiting` crosses the `ScaledObject` threshold.
+
+. Because the traffic ran through the MaaS gateway, the load also shows up in the per-subscription
+  token telemetry from xref:05-maas-governance.adoc[Module 5, Exercise 8] — no extra wiring. Run
+  this against the llm-d subscription (`limited_calls` stays 0 here, since the high limit is never
+  exceeded):
++
+[source,promql]
+----
+increase(authorized_hits{subscription="qwen25-05b-llmd-demo"}[5m])
+----
 
 === Verify
 
@@ -189,8 +288,10 @@ xref:05-maas-governance.adoc[Module 5, Exercise 3]); the replica count rises aft
   queue drains.
 * You can point to the `kserve_vllm:num_requests_waiting` threshold crossing that triggered the
   scale-up.
+* `authorized_hits{subscription="qwen25-05b-llmd-demo"}` is non-zero — the scaling traffic was
+  governed and metered by MaaS, and the llm-d model now appears in the Module 5 telemetry panels.
 
-== Exercise 5 (Reference): Workload Variant Autoscaler on GPU
+== Exercise 6 (Reference): Workload Variant Autoscaler on GPU
 
 On a GPU-enabled {rhoai} {rhoai_version} cluster, the *Workload Variant Autoscaler (WVA)* is the
 recommended way to scale llm-d. It reads KV-cache utilization and queue depth and creates a KEDA
@@ -213,12 +314,13 @@ automatically. No `ScaledObject`, RBAC, or `ClusterTriggerAuthentication` are au
 == Module summary
 
 * You installed the llm-d prerequisites and the Custom Metrics Autoscaler, and deployed an
-  `LLMInferenceService`.
-* You authorized KEDA against user-workload monitoring and scaled the deployment with a
-  `ScaledObject` driven by vLLM queue depth — no GPU required.
-* You drove load, watched replicas scale, correlated the scale event with the `kserve_vllm` queue
-  and KV-cache metrics that drove it, and saw how the Workload Variant Autoscaler delivers the same
-  capability on GPU.
+  `LLMInferenceService` attached to the MaaS gateway.
+* You published the model through MaaS with a dedicated high-limit subscription, then authorized
+  KEDA against user-workload monitoring and scaled the deployment with a `ScaledObject` driven by
+  vLLM queue depth — no GPU required.
+* You drove load through the MaaS gateway, watched replicas scale, correlated the scale event with
+  the `kserve_vllm` queue and KV-cache metrics *and* the per-subscription token telemetry that came
+  for free, and saw how the Workload Variant Autoscaler delivers the same capability on GPU.
 
 == References
 

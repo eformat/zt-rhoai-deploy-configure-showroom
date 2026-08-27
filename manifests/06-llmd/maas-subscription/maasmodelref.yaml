@@ -1,0 +1,15 @@
+---
+# Publishes the qwen25-05b-llmd LLMInferenceService (Module 6, llm-d scaling) through MaaS so its
+# traffic is governed and metered by the same maas-default-gateway used in Module 5 — no separate
+# inference gateway required. Same schema rules as the Module 5 modelref: spec.modelRef is
+# {kind,name} only (no namespace), so this MaaSModelRef must live in the SAME namespace as the
+# LLMInferenceService it names — the workshop project. Change both if you rename the project.
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: qwen25-05b-llmd
+  namespace: rhoai-deploy
+spec:
+  modelRef:
+    kind: LLMInferenceService
+    name: qwen25-05b-llmd

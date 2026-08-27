@@ -11,7 +11,7 @@ after each. Paths are referenced from the AsciiDoc pages and are relative to the
 | vLLM runtime + connection | `03-serving-platform/` | Module 3 |
 | vLLM model (qwen25-05b) | `04-vllm/` | Module 4 |
 | MaaS (postgres, RHCL, connectivity-link, gateway, serving-operators, uwm, observability-operators, observability-datasource, enable, model, subscription, telemetry) | `05-maas/` | Module 5 (TP) |
-| llm-d + KEDA/WVA | `06-llmd/` | Module 6 (TP) |
+| llm-d + KEDA/WVA (operators, service, maas-subscription, autoscaling-keda, autoscaling) | `06-llmd/` | Module 6 (TP) |
 
 ## Placeholders to fill
 
