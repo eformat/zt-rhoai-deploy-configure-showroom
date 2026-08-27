@@ -21,6 +21,15 @@ spec:
   owner:
     groups:
       - name: system:authenticated:oauth
+  # tokenMetadata feeds auth.identity.subscription_info.{costCenter,organizationId}, which the
+  # TelemetryPolicy references as MaaS token-metric labels (manifests/05-maas/telemetry). RHCL 1.4.2
+  # evaluates those CEL label expressions strictly: if costCenter/organizationId are absent they
+  # resolve to null, the labeled descriptor fails to build, and Limitador never records the
+  # authorized_hits counter — so the RHOAI "Usage" dashboard token panels stay empty. Supplying
+  # placeholder values keeps the expressions valid. (Fixed upstream in a 3.4 z-stream; harmless to keep.)
+  tokenMetadata:
+    costCenter: na
+    organizationId: na
   modelRefs:
     - name: qwen25-05b
       namespace: rhoai-deploy

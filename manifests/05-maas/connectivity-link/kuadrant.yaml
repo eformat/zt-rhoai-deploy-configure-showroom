@@ -10,4 +10,10 @@ kind: Kuadrant
 metadata:
   name: kuadrant
   namespace: kuadrant-system
-spec: {}
+spec:
+  # Enable observability so the operator creates the ServiceMonitor/PodMonitor set that scrapes
+  # the Kuadrant data-plane (Limitador, Authorino) and control-plane metrics into monitoring.
+  # This is what surfaces per-subscription token usage in the RHOAI "Usage" dashboard. Without it
+  # the Kuadrant CR ships spec.observability: {} and none of those monitors are created.
+  observability:
+    enable: true
