@@ -395,9 +395,9 @@ oc wait --for=condition=Ready llminferenceservice/qwen25-05b-maas -n {project_na
 
 === Verify
 
-* The `LLMInferenceService` reports `Ready=True`; the model loads from
-  `hf://Qwen/Qwen2.5-0.5B-Instruct` on the supported CPU vLLM image and attaches its route to
-  `maas-default-gateway`:
+* The `LLMInferenceService` reports `Ready=True`; the model loads from the OCI modelcar
+  (`oci://quay.io/redhat-ai-services/modelcar-catalog:qwen2.5-0.5b-instruct`) on the supported CPU
+  vLLM image and attaches its route to `maas-default-gateway`:
 +
 [source,bash,role="execute",subs="attributes"]
 ----

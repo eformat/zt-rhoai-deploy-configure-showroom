@@ -4,29 +4,73 @@
 apiVersion: mirror.openshift.io/v2alpha1
 kind: ImageSetConfiguration
 mirror:
-  platform:
-    channels:
-      - name: stable-4.22
-        type: ocp
-        # Pinned to the cluster's exact z-stream (oc get clusterversion). Update both if it changes.
-        minVersion: 4.22.10
-        maxVersion: 4.22.10
+  # SCOPE: RHOAI only. This mirrors just the rhods-operator and its dependencies for a disconnected
+  # install onto an ALREADY-INSTALLED OpenShift cluster. It deliberately does NOT mirror the
+  # OpenShift platform release payload. For a full from-scratch air-gapped OpenShift install, mirror
+  # the release too — uncomment the platform block below (pin to `oc get clusterversion`) and see the
+  # Module 2 references (e.g. naps-product-sa/ocp4-disconnected-workshop).
+  #
+  # platform:
+  #   channels:
+  #     - name: stable-4.22
+  #       type: ocp
+  #       minVersion: 4.22.10
+  #       maxVersion: 4.22.10
   operators:
     - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.22
+      # Each package pins the same channel its install Subscription uses (grep manifests/**/
+      # *subscription.yaml). defaultChannel is set to the pinned channel too: when you filter
+      # channels, oc-mirror v2 aborts if the catalog's declared default channel is filtered out
+      # ("a new default channel must be configured"), so naming the kept channel as the default
+      # avoids that for every package.
       packages:
+        # RHOAI operator — Modules 1-6 (manifests/01-install/operator/subscription.yaml).
         - name: rhods-operator
-          # Match the install Subscription (manifests/01-install/operator/subscription.yaml:
-          # channel stable-3.4). The catalog's declared default channel is stable-3.x; when you
-          # filter channels you must also set defaultChannel to one you keep, or oc-mirror v2 aborts
-          # with "the default channel was filtered out, a new default channel must be configured".
           defaultChannel: stable-3.4
           channels:
             - name: stable-3.4
-        # Dependencies used by later modules:
-        - name: servicemeshoperator
-        - name: authorino-operator
-        - name: kuadrant-operator
+        # MaaS gateway: Red Hat Connectivity Link (bundles Authorino + Kuadrant) + cert-manager —
+        # Module 5 (manifests/05-maas/connectivity-link/*subscription.yaml).
+        - name: rhcl-operator
+          defaultChannel: stable
+          channels:
+            - name: stable
         - name: openshift-cert-manager-operator
+          defaultChannel: stable-v1
+          channels:
+            - name: stable-v1
+        # Gateway-native serving operators for LLMInferenceService — Modules 5 & 6
+        # (manifests/05-maas/serving-operators/*subscription.yaml).
         - name: leader-worker-set
+          defaultChannel: stable-v1.0
+          channels:
+            - name: stable-v1.0
+        - name: job-set
+          defaultChannel: stable-v1.0
+          channels:
+            - name: stable-v1.0
+        # Observability backend behind the RHOAI dashboard — Module 5
+        # (manifests/05-maas/observability-operators/*subscription.yaml).
+        - name: cluster-observability-operator
+          defaultChannel: stable
+          channels:
+            - name: stable
+        - name: opentelemetry-product
+          defaultChannel: stable
+          channels:
+            - name: stable
+        # KEDA autoscaler for llm-d scaling — Module 6
+        # (manifests/06-llmd/operators/custom-metrics-autoscaler-subscription.yaml).
+        - name: openshift-custom-metrics-autoscaler-operator
+          defaultChannel: stable
+          channels:
+            - name: stable
+  # Images pulled at runtime (not carried by the operator catalog), so mirror them explicitly.
   additionalImages:
-    - name: quay.io/vllm/vllm-cpu:latest
+    # Supported Red Hat CPU vLLM image used by the llm-d / MaaS LLMInferenceServices (Modules 5 & 6).
+    # Pinned by digest to match manifests/0{5,6}-*/**/llminferenceservice.yaml.
+    - name: registry.redhat.io/rhaii/vllm-cpu-rhel9@sha256:0ec0f5ff9a5ff263f58db0cfb19e3d7eef24b94c2d8629fe5145f5a8747e28c9
+    # Modelcar (OCI-packaged model weights) pulled at runtime by Modules 4 & 6.
+    - name: quay.io/redhat-ai-services/modelcar-catalog:qwen2.5-0.5b-instruct
+    # PostgreSQL backing the MaaS API (Module 5).
+    - name: registry.redhat.io/rhel9/postgresql-15:latest

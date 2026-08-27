@@ -15,6 +15,15 @@ This module reaches the same "RHOAI Ready" end state as xref:01-install-connecte
 Run whichever path matches your target environment; you do not need both.
 ====
 
+[IMPORTANT]
+====
+*Scope: RHOAI only.* This module mirrors only {rhoai-short} — the `rhods-operator` and its dependent
+operator images — onto a cluster where OpenShift is *already installed* disconnected. It does *not*
+mirror the OpenShift platform release payload. Mirroring all of OpenShift for a from-scratch
+air-gapped install is a larger exercise; refer to the references at the end of this module for the
+complete disconnected OpenShift workflow.
+====
+
 == Learning objectives
 
 By the end of this module you will be able to:
@@ -31,19 +40,19 @@ By the end of this module you will be able to:
 Set up the connected host (bastion) that will pull images: install the oc-mirror v2 CLI, give it
 registry credentials, and pin the imageset configuration to your cluster's OpenShift version.
 
-. Confirm the cluster's OpenShift version and pin the imageset config to match. The operator catalog
-  tag *must* match the cluster minor (`v4.22`), and the platform release should match the running
-  z-stream:
+. Confirm the cluster's OpenShift version so the operator catalog tag matches the cluster minor. The
+  `redhat-operator-index` tag *must* match your OpenShift minor (a 4.22.x cluster needs catalog
+  `v4.22`), or the operator's dependencies may not resolve:
 +
 [source,bash,role="execute"]
 ----
 oc get clusterversion version -o jsonpath='{.status.desired.version}{"\n"}'
 ----
 +
-Check the printed version against `manifests/02-disconnected/imageset-config.yaml`. If it differs
-from the pinned values, edit the `platform.channels` entry (`name: stable-4.x`, `minVersion`,
-`maxVersion`) and the operator `catalog:` tag (`redhat-operator-index:v4.x`) so both track your
-cluster. This lab is pinned to `stable-4.22` / `4.22.10` and catalog `v4.22`.
+Check the printed minor against `manifests/02-disconnected/imageset-config.yaml`. If your cluster is
+not 4.22, edit the operator `catalog:` tag (`redhat-operator-index:v4.x`) to match. This lab is
+pinned to catalog `v4.22`. (The platform-release block is commented out — as noted above, this
+module does not mirror OpenShift itself; the references cover adding it.)
 
 . Install the oc-mirror v2 CLI:
 +
@@ -69,8 +78,8 @@ oc get secret pull-secret -n openshift-config \
 === Verify
 
 * `oc-mirror --v2 --help` runs, `$HOME/.docker/config.json` exists and contains a
-  `registry.redhat.io` entry, and the version from `oc get clusterversion` matches the pins in
-  `imageset-config.yaml`.
+  `registry.redhat.io` entry, and the cluster minor from `oc get clusterversion` matches the
+  operator `catalog:` tag (`v4.x`) in `imageset-config.yaml`.
 
 == Exercise 2: Mirror images with oc-mirror v2
 
