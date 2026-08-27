@@ -5,7 +5,7 @@
 #
 # scaleTargetRef.name must be the Deployment KServe creates for the LLMInferenceService.
 # KServe names it "<llmisvc-name>-kserve"; confirm the exact name on your build with:
-#   oc get deploy -n rhoai-deploy -l app.kubernetes.io/part-of=llm-d
+#   oc get deploy -n rhoai-deploy -l app.kubernetes.io/part-of=llminferenceservice
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:

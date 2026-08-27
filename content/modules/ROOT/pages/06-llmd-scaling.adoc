@@ -98,7 +98,7 @@ oc get pods -n {project_name} -w
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-oc get pods -n {project_name} -l app.kubernetes.io/part-of=llm-d
+oc get pods -n {project_name} -l app.kubernetes.io/part-of=llminferenceservice
 ----
 
 * Note the Deployment name KServe created — the autoscaler targets it in the next exercise
@@ -106,7 +106,7 @@ oc get pods -n {project_name} -l app.kubernetes.io/part-of=llm-d
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-oc get deploy -n {project_name} -l app.kubernetes.io/part-of=llm-d
+oc get deploy -n {project_name} -l app.kubernetes.io/part-of=llminferenceservice
 ----
 
 == Exercise 3: Autoscale with KEDA

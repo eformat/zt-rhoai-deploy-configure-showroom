@@ -61,18 +61,24 @@ spec:
       env:
         - name: VLLM_CPU_KVCACHE_SPACE
           value: "2"               # GiB reserved for the CPU KV cache
-        # The container sees ALL host cores (e.g. 32) but the cgroup only grants `limits.cpu`.
-        # Without these, vLLM/OpenMP spawns one thread per host core, thrashes over the 4 it
-        # actually has, and gets CPU-throttled down to ~0.5 tok/s (a 16-token reply then takes
-        # ~30s and trips the route's 30s timeout -> 504). Pin the thread pool to the allocation.
+        # Cap the OpenMP thread pool to the cgroup CPU limit. The container sees ALL host cores
+        # (e.g. 32) but the cgroup only grants `limits.cpu`; without this, vLLM/OpenMP spawns one
+        # thread per host core, thrashes over the few it actually has, and gets CPU-throttled down
+        # to ~0.5 tok/s. Keep OMP_NUM_THREADS == limits.cpu. We do NOT pin to fixed cores
+        # (VLLM_CPU_OMP_THREADS_BIND) on this shared single-node cluster: the Module 4/5/6 vLLM
+        # pods run together, so pinning them all to the same cores makes them contend — capping the
+        # thread count is enough to stop the thrash and lets the kernel spread the work.
         - name: OMP_NUM_THREADS
-          value: "4"
-        - name: VLLM_CPU_OMP_THREADS_BIND
-          value: "0-3"
+          value: "2"
+      # Sized for the shared single-node cluster. The scheduler places pods by REQUESTS, not usage:
+      # the node already commits ~95% of CPU *requests* while real CPU *usage* sits ~30%, so a large
+      # cpu request makes additional pods unschedulable. Request only 250m and let the pod burst up
+      # to the 2-CPU limit into the idle real cores. Memory is bounded by --max-model-len +
+      # VLLM_CPU_KVCACHE_SPACE above, so 6Gi is ample for 0.5B.
       resources:
         requests:
+          cpu: "250m"
+          memory: 2Gi
+        limits:
           cpu: "2"
           memory: 6Gi
-        limits:
-          cpu: "4"
-          memory: 12Gi
