@@ -283,12 +283,11 @@ python3 manifests/06-llmd/load/load-test.py -c 16 -d 300 > /tmp/llmd-load.log 2>
 +
 [NOTE]
 ====
-*Why not a `for i in $(seq 1 500); do curl … & done` burst?* A one-shot burst fires every request at
-once and drains before the ~30s user-workload-monitoring scrape and 15s KEDA poll can observe the
-queue — so the metric never crosses the threshold and nothing scales. The burst also *under-reports
-tokens*: at a large `max_tokens` the completions run past the gateway's 30s route timeout and return
-`504`/`500` with no `usage` body, so Limitador meters *0 tokens* for them even though each still
-counts as an authorized request (this is the "many requests, 100% success, 0 tokens" you would see
+*A one-shot burst fires every request at once and drains before the ~30s user-workload-monitoring scrape 
+and 15s KEDA poll can observe the queue — so the metric never crosses the threshold and nothing scales. 
+The burst also *under-reports tokens*: at a large `max_tokens` the completions run past the gateway's 30s 
+route timeout and return `504`/`500` with no `usage` body, so Limitador meters *0 tokens* for them even 
+though each still counts as an authorized request (this is the "many requests, 100% success, 0 tokens" you would see
 on the dashboard). The generator instead sustains the queue and keeps `--max-tokens` small (`32`) so
 completions finish under the timeout and their tokens are metered.
 ====
