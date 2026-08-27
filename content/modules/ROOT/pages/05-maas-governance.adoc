@@ -509,33 +509,65 @@ The traffic from Exercises 6 and 7 has produced metrics. Because User Workload M
 enabled in Exercise 3, the served model's `kserve_vllm` series are now in the cluster Thanos and
 the {maas} gateway's token usage is broken out per subscription.
 
-. View *vLLM engine metrics*. In the {ocp} console, go to *Observe -> Metrics* and run queries such
-  as:
+. View *vLLM engine throughput*. In the {ocp} console, go to *Observe -> Metrics* and run these
+  queries. The workshop drives the model in short manual bursts, so an instantaneous `rate(...)`
+  reads 0 most of the time; a windowed `increase(...)` captures the tokens the engine actually
+  processed over the last 15 minutes:
 +
 [source,promql]
 ----
-rate(kserve_vllm:prompt_tokens_total[5m])
+sum(increase(kserve_vllm:prompt_tokens_total[15m]))
 ----
 +
 [source,promql]
 ----
-kserve_vllm:gpu_cache_usage_perc
+sum(increase(kserve_vllm:generation_tokens_total[15m]))
 ----
 +
 [source,promql]
 ----
-kserve_vllm:num_requests_waiting
+kserve_vllm:kv_cache_usage_perc
 ----
 +
 NOTE: These are PromQL expressions — paste them into the *Observe -> Metrics* query box in the
-console ({metrics_console_url}), not the terminal. On a CPU-only cluster the KV-cache metric is
-still reported under the legacy `gpu_cache_usage_perc` name.
+console ({metrics_console_url}), not the terminal. `prompt_tokens` are the input tokens the engine
+read; `generation_tokens` are the output tokens it produced. `kv_cache_usage_perc` is the KV-cache
+gauge (the older `gpu_cache_usage_perc` name is gone in this vLLM build); it sits near 0 on a
+lightly loaded CPU model and rises under concurrent load. Queue depth
+(`kserve_vllm:num_requests_waiting`) only builds under concurrent traffic, so it stays 0 here — you
+drive it up and scale on it in xref:06-llmd-scaling.adoc[Module 6].
 
-. View *MaaS per-subscription telemetry*. In the {rhoai-short} dashboard, open the *Observe &
-  monitor -> Dashboard*; the token-usage panels now break consumption out by subscription,
-  reflecting the traffic you generated. The per-subscription breakdown is produced by the Istio
-  `Telemetry` and Kuadrant `TelemetryPolicy` applied in Exercise 5 — if the dashboard shows only
-  aggregate usage, confirm those CRs exist:
+. View *MaaS per-subscription telemetry* — the metrics that map directly to the subscription's
+  token rate limit (100 tokens / 1 minute). These come from Limitador (the {maas} rate limiter),
+  labeled per subscription by the `TelemetryPolicy` from Exercise 5, so unlike the engine metrics
+  above they are broken out by `subscription`:
++
+[source,promql]
+----
+authorized_hits{subscription="qwen25-05b-demo"}
+----
++
+[source,promql]
+----
+increase(authorized_hits{subscription="qwen25-05b-demo"}[1m])
+----
++
+[source,promql]
+----
+limited_calls{subscription="qwen25-05b-demo"}
+----
++
+`authorized_hits` is the running total of tokens metered against the subscription — this is the
+counter the limit is enforced on, so it is the engine's token counts seen from the governance side.
+`increase(authorized_hits[...][1m])` is tokens consumed in the last minute, the exact 1-minute
+window the `limit: 100 / window: 1m` rule measures — watch it approach 100 as you send traffic.
+`limited_calls` is the number of requests rejected with HTTP 429 once that window was exhausted,
+which is what you triggered in Exercise 7.
+
+. View the same telemetry in the dashboard. In the {rhoai-short} dashboard, open *Observe &
+  monitor -> Dashboard*; the token-usage panels break the `authorized_hits` counter out by
+  subscription. If the dashboard shows only aggregate usage, confirm the Istio `Telemetry` and
+  Kuadrant `TelemetryPolicy` from Exercise 5 exist:
 +
 [source,bash,role="execute"]
 ----
@@ -544,8 +576,10 @@ oc get telemetry,telemetrypolicy -n openshift-ingress
 
 === Verify
 
-* `kserve_vllm:num_requests_waiting` (and the other `kserve_vllm` queries) return a series for the
+* `sum(increase(kserve_vllm:generation_tokens_total[15m]))` returns a non-zero token count for the
   served `qwen25-05b` model.
+* `authorized_hits{subscription="qwen25-05b-demo"}` returns the running token total, and
+  `limited_calls{subscription="qwen25-05b-demo"}` is non-zero (the 429s from Exercise 7).
 * The {maas} dashboard shows per-subscription token consumption reflecting the Exercise 6/7 traffic.
 
 == Exercise 9 (Optional): Test in the Gen AI playground
