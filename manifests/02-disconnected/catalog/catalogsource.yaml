@@ -9,7 +9,7 @@ metadata:
   namespace: openshift-marketplace
 spec:
   sourceType: grpc
-  image: REGISTRY_URL/redhat/redhat-operator-index:v4.21
+  image: REGISTRY_URL/redhat/redhat-operator-index:v4.22
   displayName: Mirrored Red Hat Operators
   publisher: Red Hat
   updateStrategy:

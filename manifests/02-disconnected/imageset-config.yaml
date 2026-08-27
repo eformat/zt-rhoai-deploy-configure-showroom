@@ -6,12 +6,13 @@ kind: ImageSetConfiguration
 mirror:
   platform:
     channels:
-      - name: stable-4.21
+      - name: stable-4.22
         type: ocp
-        minVersion: 4.21.0
-        maxVersion: 4.21.0
+        # Pinned to the cluster's exact z-stream (oc get clusterversion). Update both if it changes.
+        minVersion: 4.22.10
+        maxVersion: 4.22.10
   operators:
-    - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.21
+    - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.22
       packages:
         - name: rhods-operator
           # Match the install Subscription (manifests/01-install/operator/subscription.yaml:
