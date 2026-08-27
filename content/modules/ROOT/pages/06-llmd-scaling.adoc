@@ -232,6 +232,15 @@ export MODEL_PATH=$(echo "$MODEL_URL" | sed -E 's#^https?://[^/]+##')
 echo "Model: $MODEL_NAME  ->  ${HOST}${MODEL_PATH}"
 ----
 
+[NOTE]
+====
+*The first request after the model starts is slow — this is expected.* A freshly started (or
+freshly scaled-up) vLLM replica has cold caches, so its *first* completion can take ~30 seconds and
+may even hit the gateway's default 30s route timeout and return `504`/`500`. This is a one-time
+warm-up, not a failure: once the engine is warm, completions return in ~2 seconds. If your first
+call times out, simply run it again — subsequent requests (and the load loop below) are fast.
+====
+
 . Generate concurrent load through the gateway to build queue depth. The requests run in parallel so
   they queue on the vLLM engine (`--max-num-seqs=8`), which is what pushes `num_requests_waiting`
   past the `ScaledObject` threshold:
