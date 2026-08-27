@@ -39,7 +39,7 @@ spec:
       - name: main
         # Red Hat supported CPU vLLM image (same build the pre-installed vllm-cpu-x86 runtime uses).
         image: registry.redhat.io/rhaii/vllm-cpu-rhel9@sha256:0ec0f5ff9a5ff263f58db0cfb19e3d7eef24b94c2d8629fe5145f5a8747e28c9
-        # Bound vLLM's CPU memory footprint so 0.5B fits the 12Gi limit below. Without
+        # Bound vLLM's CPU memory footprint so 0.5B fits the 8Gi limit below. Without
         # --max-model-len, vLLM profiles against the model's full 32K context, allocates a huge
         # KV cache, and gets OOMKilled on a CPU node (exit 137) — crash-looping the worker.
         args:
@@ -52,24 +52,26 @@ spec:
         env:
           - name: VLLM_CPU_KVCACHE_SPACE
             value: "2"               # GiB reserved for the CPU KV cache
-          # Cap the OpenMP thread pool to the cgroup CPU limit. The container sees ALL host cores
-          # (e.g. 32) but the cgroup only grants `limits.cpu`; without this, vLLM/OpenMP spawns one
-          # thread per host core, thrashes over the few it actually has, and gets CPU-throttled.
-          # Keep this == limits.cpu below. NOT pinned to fixed cores (no VLLM_CPU_OMP_THREADS_BIND)
-          # because KEDA scales this to multiple replicas that share the node — pinning them all to
-          # the same cores would make replicas contend instead of spreading across the node.
+          # The container sees ALL host cores (e.g. 32) but the cgroup CFS quota is `limits.cpu`.
+          # Without these, vLLM/OpenMP spawns one thread per host core, thrashes over the cores it
+          # actually has, and gets CPU-throttled to ~0.1 tok/s (a short reply then takes minutes and
+          # trips the gateway route timeout -> 504). Pin the thread pool to a small, single-NUMA-node
+          # core set (0-3): an explicit bind co-locates compute and memory on one NUMA node, which is
+          # what makes decode fast here (~2s completions) — do NOT use "auto", which spans both
+          # sockets and forces slow cross-NUMA memory access. Keep OMP_NUM_THREADS == limits.cpu.
+          # Matches the Module 4 InferenceService. (When KEDA scales to multiple replicas they all
+          # pin to cores 0-3 and share them, so size the node with that contention in mind.)
           - name: OMP_NUM_THREADS
-            value: "2"
-        # Sized so all maxReplicaCount (4) replicas fit on a single-node cluster. The scheduler
-        # places pods by REQUESTS, not usage: on a single node the control plane already commits
-        # ~95% of CPU *requests* while real CPU *usage* sits ~30%, so a cpu request of 2 makes even
-        # the 2nd replica unschedulable. We therefore request only 250m (4 replicas = 1 CPU of the
-        # request budget) but keep a 2-CPU limit so each pod bursts into the idle real cores. Memory
-        # is bounded by --max-model-len + VLLM_CPU_KVCACHE_SPACE above, so 6Gi is ample for 0.5B.
+            value: "4"
+          - name: VLLM_CPU_OMP_THREADS_BIND
+            value: "0-3"
+        # request stays low so replicas still schedule on a busy single-node cluster; the limit is 4
+        # so the CFS quota matches OMP_NUM_THREADS above (throughput is governed by the limit, not the
+        # request). Memory is bounded by --max-model-len + VLLM_CPU_KVCACHE_SPACE, so 8Gi suits 0.5B.
         resources:
           requests:
-            cpu: "250m"
+            cpu: "1"
             memory: 2Gi
           limits:
-            cpu: "2"
-            memory: 6Gi
+            cpu: "4"
+            memory: 8Gi
