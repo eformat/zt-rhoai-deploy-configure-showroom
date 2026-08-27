@@ -14,8 +14,13 @@ mirror:
     - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.21
       packages:
         - name: rhods-operator
+          # Match the install Subscription (manifests/01-install/operator/subscription.yaml:
+          # channel stable-3.4). The catalog's declared default channel is stable-3.x; when you
+          # filter channels you must also set defaultChannel to one you keep, or oc-mirror v2 aborts
+          # with "the default channel was filtered out, a new default channel must be configured".
+          defaultChannel: stable-3.4
           channels:
-            - name: stable
+            - name: stable-3.4
         # Dependencies used by later modules:
         - name: servicemeshoperator
         - name: authorino-operator
