@@ -50,7 +50,11 @@ spec:
       # OOMKilled on a CPU node.
       args:
         - "--dtype=bfloat16"       # half the weight footprint vs float32
-        - "--max-model-len=4096"   # cap context (default would be 32768)
+        # cap context (default would be 32768). 8192 (not 4096) so the model is usable from the
+        # Gen AI playground, whose Llama Stack distribution sends a fixed max_tokens=4096 output
+        # request — a 4096 context would leave 0 tokens for the prompt (HTTP 400). The CPU KV
+        # cache has ample room for 8192 (see VLLM_CPU_KVCACHE_SPACE below).
+        - "--max-model-len=8192"
         - "--max-num-seqs=8"       # cap concurrent sequences (default 256)
         - "--enable-force-include-usage"  # always emit token-usage in responses (MaaS telemetry)
         - "--enforce-eager"        # skip graph capture / extra buffers

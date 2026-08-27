@@ -34,9 +34,14 @@ spec:
         image: registry.redhat.io/rhaii/vllm-cpu-rhel9@sha256:0ec0f5ff9a5ff263f58db0cfb19e3d7eef24b94c2d8629fe5145f5a8747e28c9
         # Bound vLLM's CPU memory footprint so 0.5B fits the limit below (Qwen2.5-0.5B
         # otherwise profiles against the full 32K context and gets OOMKilled on CPU).
+        # max-model-len must exceed the Gen AI playground's fixed output request: the Llama Stack
+        # distribution sends max_tokens=4096 (VLLM_MAX_TOKENS) on every call, so a 4096 context
+        # leaves 0 tokens for the prompt and every playground turn fails with HTTP 400. 8192 gives
+        # a 4096-token input budget alongside the 4096-token output; the CPU KV cache
+        # (VLLM_CPU_KVCACHE_SPACE=2Gi) has ample room for this (~175K tokens of block capacity).
         args:
           - "--dtype=bfloat16"
-          - "--max-model-len=4096"
+          - "--max-model-len=8192"
           - "--max-num-seqs=8"
           - "--enable-force-include-usage"  # always emit token-usage in responses (MaaS telemetry)
           - "--enforce-eager"
