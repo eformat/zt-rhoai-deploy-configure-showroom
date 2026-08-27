@@ -584,11 +584,48 @@ oc get telemetry,telemetrypolicy -n openshift-ingress
 
 == Exercise 9 (Optional): Test in the Gen AI playground
 
-. In the {rhoai-short} dashboard, open the *Gen AI playground* and select the published model.
+The Gen AI playground is a separate {rhoai-short} capability powered by the *Llama Stack* operator.
+The earlier modules do not enable it, so this exercise turns it on and then chats with the served
+model. The `qwen25-05b` model was already published as an AI asset endpoint back in Module 4 (the
+`opendatahub.io/genai-asset` label on its `InferenceService`), so once the playground is enabled the
+model is selectable there without any further changes.
+
+. Enable the Llama Stack backend and reveal the *Gen AI studio* in the dashboard. The first patch
+  flips `llamastackoperator` to `Managed` in the `DataScienceCluster`; the second adds the
+  `genAiStudio` nav flag to the dashboard config (`modelAsService` was already set in Exercise 3):
++
+[source,bash,role="execute"]
+----
+oc patch datasciencecluster default-dsc --type merge \
+  --patch-file manifests/05-maas/enable/dsc-genai-patch.yaml
+oc patch odhdashboardconfig odh-dashboard-config -n redhat-ods-applications --type merge \
+  --patch-file manifests/05-maas/enable/dashboard-genai-patch.yaml
+----
+
+. Wait for the Llama Stack operator to come up:
++
+[source,bash,role="execute"]
+----
+oc wait --for=condition=LlamaStackOperatorReady datasciencecluster/default-dsc --timeout=5m
+----
+
+. In the {rhoai-short} dashboard, open *Gen AI studio -> Playground* (reload the dashboard if the
+  nav entry has not appeared yet). If this is the first time the project uses the playground, click
+  *Configure playground* to provision the per-project Llama Stack distribution, then select the
+  `qwen25-05b` model and send a prompt.
 
 === Verify
 
-* The published model appears as a selectable endpoint and returns a response in the playground.
+* The `DataScienceCluster` reports the operator ready:
++
+[source,bash,role="execute"]
+----
+oc get datasciencecluster default-dsc \
+  -o jsonpath='{.status.conditions[?(@.type=="LlamaStackOperatorReady")].status}{"\n"}'
+----
++
+This returns `True`.
+* The `qwen25-05b` model appears as a selectable endpoint in the playground and returns a response.
 
 == Module summary
 

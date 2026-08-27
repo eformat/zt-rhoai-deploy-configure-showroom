@@ -1,0 +1,14 @@
+---
+# Strategic-merge patch revealing the Gen AI studio (playground) in the RHOAI dashboard.
+# Pairs with dsc-genai-patch.yaml (which starts the Llama Stack backend). modelAsService is
+# already set by dashboard-maas-patch.yaml in Exercise 3; this adds the two flags that expose
+# the Gen AI studio -> Playground nav and the AI asset endpoints view.
+# Apply with: oc patch odhdashboardconfig odh-dashboard-config \
+#   -n redhat-ods-applications --type merge \
+#   --patch-file manifests/05-maas/enable/dashboard-genai-patch.yaml
+spec:
+  dashboardConfig:
+    # Surfaces "Gen AI studio -> Playground" in the dashboard nav.
+    genAiStudio: true
+    # Part of the documented Gen AI studio enablement combo (application enablement flows).
+    enablement: true

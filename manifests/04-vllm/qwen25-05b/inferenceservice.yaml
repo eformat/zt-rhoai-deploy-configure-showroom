@@ -25,6 +25,12 @@ metadata:
     security.opendatahub.io/enable-auth: "true"
   labels:
     opendatahub.io/dashboard: "true"
+    # Publish this deployment as an AI asset endpoint so it is selectable in the Gen AI
+    # playground (Module 5, Exercise 9). This is the label the dashboard's "Add as AI asset
+    # endpoint" checkbox sets when you deploy via the UI; we set it here because the model is
+    # deployed from YAML. Without it (alongside opendatahub.io/dashboard) the model is greyed
+    # out in the AI-asset list. Harmless when the Gen AI studio is not enabled — it is just a label.
+    opendatahub.io/genai-asset: "true"
     # KServe-managed external route (the dashboard's "Make deployed models available
     # through an external route"). KServe creates and owns an edge-terminated Route, and
     # .status.url becomes the external HTTPS endpoint. Remove this label to keep the model

@@ -1,0 +1,10 @@
+---
+# Strategic-merge patch enabling the Gen AI playground backend on the existing DataScienceCluster.
+# The Gen AI playground (Module 5, Exercise 9) is served by the Llama Stack operator; the base DSC
+# ships it Removed. This flips it to Managed, which brings up the llama-stack control plane.
+# Apply with: oc patch datasciencecluster default-dsc --type merge \
+#   --patch-file manifests/05-maas/enable/dsc-genai-patch.yaml
+spec:
+  components:
+    llamastackoperator:
+      managementState: Managed
