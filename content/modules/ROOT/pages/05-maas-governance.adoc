@@ -163,8 +163,13 @@ oc wait --for=condition=Programmed gateway/maas-default-gateway \
 
 * Both operator CSVs report `Succeeded`, `kuadrant/kuadrant` is `Ready`, and
   `gateway/maas-default-gateway` in `openshift-ingress` reports `Programmed=True`.
-* In ClusterIP mode, `oc get route maas-gateway-route -n openshift-ingress` is `Admitted`
-  and the `maas-gw-service-tls` secret has been provisioned by the service-ca operator.
+* In ClusterIP mode, the gateway route is `Admitted` and the `maas-gw-service-tls` secret has been
+  provisioned by the service-ca operator:
++
+[source,bash,role="execute"]
+----
+oc get route maas-gateway-route -n openshift-ingress
+----
 
 [TIP]
 ====
@@ -356,9 +361,14 @@ oc rollout status deploy/rhods-dashboard -n redhat-ods-applications --timeout=3m
 
 === Verify
 
-* `oc get monitoring default-monitoring -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'`
-  reports `True`, and `oc get monitoringstack data-science-monitoringstack -n redhat-ods-monitoring`
-  is `Available` with its Prometheus pod `3/3 Running`.
+* Monitoring is ready — `default-monitoring` reports `True`, and the `data-science-monitoringstack`
+  is `Available` with its Prometheus pod `3/3 Running`:
++
+[source,bash,role="execute"]
+----
+oc get monitoring default-monitoring -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}{"\n"}'
+oc get monitoringstack data-science-monitoringstack -n redhat-ods-monitoring
+----
 * After a browser refresh, the {rhoai-short} dashboard shows the *Models as a Service* view (AI
   asset endpoints, API keys) and an *Observe & monitor -> Dashboard (Tech Preview)* nav item.
 * On the *Observe & monitor -> Dashboard*, the *Cluster* tab renders live data (System health,
@@ -385,9 +395,14 @@ oc wait --for=condition=Ready llminferenceservice/qwen25-05b-maas -n {project_na
 
 === Verify
 
-* `oc get llminferenceservice qwen25-05b-maas -n {project_name}` reports `Ready=True`; the model
-  loads from `hf://Qwen/Qwen2.5-0.5B-Instruct` on the supported CPU vLLM image and attaches its
-  route to `maas-default-gateway`.
+* The `LLMInferenceService` reports `Ready=True`; the model loads from
+  `hf://Qwen/Qwen2.5-0.5B-Instruct` on the supported CPU vLLM image and attaches its route to
+  `maas-default-gateway`:
++
+[source,bash,role="execute",subs="attributes"]
+----
+oc get llminferenceservice qwen25-05b-maas -n {project_name}
+----
 
 == Exercise 5: Publish and govern the model
 
@@ -439,10 +454,19 @@ Exercise 2; confirm that step completed.
 
 === Verify
 
-* `oc get maasmodelref,maassubscription,maasauthpolicy -n {project_name}` shows all three, and the
-  model appears in the *Models as a Service* view in the dashboard.
-* `oc get telemetry,telemetrypolicy -n openshift-ingress` lists `latency-per-subscription` and
-  `maas-telemetry`.
+* All three MaaS custom resources exist, and the model appears in the *Models as a Service* view in
+  the dashboard:
++
+[source,bash,role="execute",subs="attributes"]
+----
+oc get maasmodelref,maassubscription,maasauthpolicy -n {project_name}
+----
+* The telemetry resources list `latency-per-subscription` and `maas-telemetry`:
++
+[source,bash,role="execute"]
+----
+oc get telemetry,telemetrypolicy -n openshift-ingress
+----
 
 == Exercise 6: Mint an API key and call the model
 

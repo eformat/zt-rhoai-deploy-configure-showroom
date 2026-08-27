@@ -70,8 +70,13 @@ oc get catalogsource -n openshift-marketplace
 
 === Verify
 
-* The {rhoai-short} operator is installable from the local catalog (visible in OperatorHub / via
-  `oc get packagemanifest | grep rhods-operator`) with no external image pulls.
+* The {rhoai-short} operator is installable from the local catalog (visible in OperatorHub), with no
+  external image pulls:
++
+[source,bash,role="execute"]
+----
+oc get packagemanifest | grep rhods-operator
+----
 
 == Exercise 3: Complete the DataScienceCluster offline
 
@@ -87,8 +92,13 @@ oc wait datasciencecluster/default-dsc --for=condition=Ready --timeout=20m
 
 === Verify
 
-* `oc get datasciencecluster default-dsc -o jsonpath='{.status.phase}'` reports `Ready` with no
-  external pulls (check pod events show images resolving from `{registry_url}`).
+* The DSC reports a `Ready` phase with no external pulls (check pod events show images resolving
+  from `{registry_url}`):
++
+[source,bash,role="execute"]
+----
+oc get datasciencecluster default-dsc -o jsonpath='{.status.phase}{"\n"}'
+----
 
 == Exercise 4 (Alternative): Quay.io proxy pull-through cache
 

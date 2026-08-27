@@ -36,8 +36,18 @@ oc version
 
 === Verify
 
-* `oc whoami` returns `{user}`.
-* `oc version` prints a Server Version of {ocp_version}.
+* `oc whoami` returns `{user}`:
++
+[source,bash,role="execute"]
+----
+oc whoami
+----
+* `oc version` prints a Server Version of `{ocp_version}`:
++
+[source,bash,role="execute"]
+----
+oc version
+----
 
 == Clone the workshop manifests
 

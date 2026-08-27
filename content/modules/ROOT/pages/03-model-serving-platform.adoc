@@ -34,7 +34,12 @@ oc label namespace {project_name} opendatahub.io/dashboard=true --overwrite
 
 === Verify
 
-* `oc get project {project_name}` shows the project `Active`.
+* The project shows as `Active`:
++
+[source,bash,role="execute",subs="attributes"]
+----
+oc get project {project_name}
+----
 
 == Exercise 2: Enable model serving
 
