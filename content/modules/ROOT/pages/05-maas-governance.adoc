@@ -582,7 +582,7 @@ oc get telemetry,telemetrypolicy -n openshift-ingress
   `limited_calls{subscription="qwen25-05b-demo"}` is non-zero (the 429s from Exercise 7).
 * The {maas} dashboard shows per-subscription token consumption reflecting the Exercise 6/7 traffic.
 
-== Exercise 9 (Optional): Test in the Gen AI playground
+== Exercise 9: Test in the Gen AI playground
 
 The Gen AI playground is a separate {rhoai-short} capability powered by the *Llama Stack* operator.
 The earlier modules do not enable it, so this exercise turns it on and then chats with the served
@@ -613,6 +613,10 @@ oc wait --for=condition=LlamaStackOperatorReady datasciencecluster/default-dsc -
   nav entry has not appeared yet). If this is the first time the project uses the playground, click
   *Configure playground* to provision the per-project Llama Stack distribution, then select the
   `qwen25-05b` model and send a prompt.
+
+NOTE: You can update the token rate limit (100 tokens / 1 minute) in the Settings -> Subscriptions menu.
+    The playground routes through the MaaS gateway, so it's also subject to the 100-tokens/min subscription
+  limit — even a short chat can trip a *HTTP 429*.
 
 === Verify
 
