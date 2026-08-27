@@ -459,7 +459,9 @@ Exercise 2; confirm that step completed.
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-oc get maasmodelref,maassubscription,maasauthpolicy -n {project_name}
+oc get maasmodelref -n {project_name}
+# The subscription and auth policy land in models-as-a-service (see the note above), not the project.
+oc get maassubscription,maasauthpolicy -n models-as-a-service
 ----
 * The telemetry resources list `latency-per-subscription` and `maas-telemetry`:
 +

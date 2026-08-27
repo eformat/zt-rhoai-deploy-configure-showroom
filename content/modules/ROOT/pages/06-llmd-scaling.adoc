@@ -112,7 +112,7 @@ oc get pods -n {project_name} -w
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-oc get pods -n {project_name} -l app.kubernetes.io/part-of=llminferenceservice
+oc get pods -n {project_name} -l app.kubernetes.io/name=qwen25-05b-llmd
 ----
 
 * The `LLMInferenceService` reaches `Ready=True` — its HTTPRoute is accepted by
@@ -126,11 +126,14 @@ oc get llminferenceservice qwen25-05b-llmd -n {project_name}
 ----
 
 * Note the Deployment name KServe created — the autoscaler targets it in Exercise 4
-  (expected: `qwen25-05b-llmd-kserve`):
+  (expected: `qwen25-05b-llmd-kserve`). The selector below narrows to this model's vLLM *workload*
+  Deployment; the broader `app.kubernetes.io/part-of=llminferenceservice` label would also match the
+  router-scheduler (EPP) Deployment and any other `LLMInferenceService` in the project (such as
+  Module 5's `qwen25-05b-maas`):
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-oc get deploy -n {project_name} -l app.kubernetes.io/part-of=llminferenceservice
+oc get deploy -n {project_name} -l app.kubernetes.io/name=qwen25-05b-llmd,kserve.io/component=workload
 ----
 
 == Exercise 3: Publish the scaling model through MaaS
@@ -170,7 +173,9 @@ stays populated. Module 5's rate-limit demo is left untouched.
 [source,bash,role="execute",subs="attributes"]
 ----
 oc get maasmodelref qwen25-05b-llmd -n {project_name}
-oc get maassubscription qwen25-05b-llmd-demo maasauthpolicy qwen25-05b-llmd-auth -n models-as-a-service
+# Query both kinds in one command with the type/name form; a bare
+# `oc get maassubscription NAME1 NAME2` would treat every argument as a MaaSSubscription name.
+oc get maassubscription/qwen25-05b-llmd-demo maasauthpolicy/qwen25-05b-llmd-auth -n models-as-a-service
 ----
 
 == Exercise 4: Autoscale with KEDA
@@ -207,6 +212,22 @@ different name for your build, edit `manifests/06-llmd/autoscaling-keda/scaledob
 oc get scaledobject -n {project_name}
 oc get hpa -n {project_name}
 ----
++
+[NOTE]
+====
+*Give the HPA a minute to populate.* The `ScaledObject` becomes `READY=True` almost immediately, but
+the HPA it creates first shows `TARGETS` as `<unknown>/5` and `REPLICAS 0` — KEDA's metrics adapter
+has not yet fetched the queue-depth metric from Thanos. Within ~30–60 seconds it reports a numeric
+target (`0/5` on an idle model) and applies `minReplicaCount`, so `REPLICAS` becomes `1`. A lingering
+`<unknown>` is normal during this warm-up; if it never resolves, confirm the
+`ClusterTriggerAuthentication` and user-workload monitoring from the previous steps. Wait for the
+target to become numeric before driving load:
+
+[source,bash,role="execute",subs="attributes"]
+----
+oc get hpa keda-hpa-qwen25-05b-llmd-keda -n {project_name} -w
+----
+====
 
 == Exercise 5: Drive load and observe scaling
 
@@ -247,22 +268,34 @@ warm-up, not a failure: once the engine is warm, completions return in ~2 second
 call times out, simply run it again — subsequent requests (and the load loop below) are fast.
 ====
 
-. Generate concurrent load through the gateway to build queue depth. The requests run in parallel so
-  they queue on the vLLM engine (`--max-num-seqs=8`), which is what pushes `num_requests_waiting`
-  past the `ScaledObject` threshold:
+. Generate *sustained* concurrent load through the gateway to build queue depth. The generator holds
+  a fixed number of requests in flight for the whole duration — that is what keeps
+  `num_requests_waiting` above the `ScaledObject` threshold long enough for KEDA to react. With
+  concurrency `16` against an engine that admits `--max-num-seqs=8`, at least 8 requests are always
+  waiting. It is standard-library Python (no `pip install`), and reads `HOST`, `MODEL_PATH`,
+  `MODEL_NAME`, and `API_KEY` from the environment you exported above. Start it in the background and
+  tee its progress to a log:
 +
-[source,bash,role="execute"]
+[source,bash,role="execute",subs="attributes"]
 ----
-for i in $(seq 1 500); do
-  curl -sSk -o /dev/null "${HOST}${MODEL_PATH}/v1/completions" \
-    -H "Authorization: Bearer ${API_KEY}" \
-    -H "Content-Type: application/json" \
-    -d "{\"model\":\"${MODEL_NAME}\",\"prompt\":\"scale test\",\"max_tokens\":64}" &
-done; wait
+python3 manifests/06-llmd/load/load-test.py -c 16 -d 300 > /tmp/llmd-load.log 2>&1 &
 ----
++
+[NOTE]
+====
+*Why not a `for i in $(seq 1 500); do curl … & done` burst?* A one-shot burst fires every request at
+once and drains before the ~30s user-workload-monitoring scrape and 15s KEDA poll can observe the
+queue — so the metric never crosses the threshold and nothing scales. The burst also *under-reports
+tokens*: at a large `max_tokens` the completions run past the gateway's 30s route timeout and return
+`504`/`500` with no `usage` body, so Limitador meters *0 tokens* for them even though each still
+counts as an authorized request (this is the "many requests, 100% success, 0 tokens" you would see
+on the dashboard). The generator instead sustains the queue and keeps `--max-tokens` small (`32`) so
+completions finish under the timeout and their tokens are metered.
+====
 
 . Watch the replica count climb as the queue-depth threshold is exceeded, then settle back after
-  the cooldown period:
+  the cooldown period once the load finishes (tail `/tmp/llmd-load.log` in another terminal to follow
+  the generator's `ok`/`throttled`/`other` tally):
 +
 [source,bash,role="execute",subs="attributes"]
 ----
