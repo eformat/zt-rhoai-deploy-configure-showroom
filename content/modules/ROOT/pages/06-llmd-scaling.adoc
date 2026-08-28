@@ -290,7 +290,7 @@ TIP: Use *sustained* load, not a burst. A one-shot burst fires all requests at o
 +
 [source,bash,role="execute",subs="attributes"]
 ----
-python3 manifests/06-llmd/load/load-test.py -c 16 -d 300 > /tmp/llmd-load.log 2>&1 &
+python3 manifests/06-llmd/load/load-test.py -c 32 -d 300 > /tmp/llmd-load.log 2>&1 &
 ----
 
 . Watch the HPA drive the replica count. As `num_requests_waiting` crosses the threshold, the HPA's
