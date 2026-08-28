@@ -87,6 +87,8 @@ oc get csv -n openshift-keda | grep -Ei 'custom-metrics'
 oc get pods -n openshift-keda
 ----
 
+With KEDA running, let's deploy the model it will scale.
+
 == Exercise 2: Deploy an LLMInferenceService
 
 Deploy the CPU model as an `LLMInferenceService`, which brings up the llm-d Endpoint Picker (EPP)
@@ -125,15 +127,18 @@ oc wait --for=condition=Ready llminferenceservice/qwen25-05b-llmd -n {project_na
 oc get llminferenceservice qwen25-05b-llmd -n {project_name}
 ----
 
+The model is serving behind the gateway. Now let's publish it through MaaS so the load test traffic is governed and metered.
+
 * Note the Deployment name KServe created — the autoscaler targets it in Exercise 4
-  (expected: `qwen25-05b-llmd-kserve`). The selector below narrows to this model's vLLM *workload*
-  Deployment; the broader `app.kubernetes.io/part-of=llminferenceservice` label would also match the
-  router-scheduler (EPP) Deployment and any other `LLMInferenceService` in the project (such as
-  Module 5's `qwen25-05b-maas`):
+  (expected: `qwen25-05b-llmd-kserve`). Export it now so you have it ready:
 +
 [source,bash,role="execute",subs="attributes"]
 ----
 oc get deploy -n {project_name} -l app.kubernetes.io/name=qwen25-05b-llmd,kserve.io/component=workload
+export DEPLOY_NAME=$(oc get deploy -n {project_name} \
+  -l app.kubernetes.io/name=qwen25-05b-llmd,kserve.io/component=workload \
+  -o jsonpath='{.items[0].metadata.name}')
+echo "Target deployment: $DEPLOY_NAME"
 ----
 +
 [NOTE]
@@ -190,6 +195,8 @@ oc get maasmodelref qwen25-05b-llmd -n {project_name}
 oc get maassubscription/qwen25-05b-llmd-demo maasauthpolicy/qwen25-05b-llmd-auth -n models-as-a-service
 ----
 
+With a high-limit subscription in place, let's wire KEDA to the queue-depth metric and set the scaling bounds.
+
 == Exercise 4: Autoscale with KEDA
 
 Grant KEDA read access to user-workload monitoring, then create a `ScaledObject` that scales the
@@ -208,12 +215,7 @@ This creates, in one apply:
 * a `ScaledObject` (`qwen25-05b-llmd-keda`) targeting the `qwen25-05b-llmd-kserve` Deployment,
   `minReplicaCount: 1`, `maxReplicaCount: 4`.
 
-[NOTE]
-====
-The `ScaledObject` targets the Deployment named `qwen25-05b-llmd-kserve`. If Exercise 2 reported a
-different name for your build, edit `manifests/06-llmd/autoscaling-keda/scaledobject.yaml`
-(`spec.scaleTargetRef.name`) before applying.
-====
+NOTE: The `ScaledObject` targets `qwen25-05b-llmd-kserve`. If `$DEPLOY_NAME` from Exercise 2 differs, patch the manifest before applying: `sed -i "s/qwen25-05b-llmd-kserve/$DEPLOY_NAME/g" manifests/06-llmd/autoscaling-keda/scaledobject.yaml`
 
 === Verify
 
@@ -240,6 +242,8 @@ target to become numeric before driving load:
 oc get hpa keda-hpa-qwen25-05b-llmd-keda -n {project_name} -w
 ----
 ====
+
+KEDA is watching the queue. Let's give it something to watch.
 
 == Exercise 5: Drive load and observe scaling
 
@@ -280,34 +284,14 @@ warm-up, not a failure: once the engine is warm, completions return in ~2 second
 call times out, simply run it again — subsequent requests (and the load loop below) are fast.
 ====
 
-. Generate *sustained* concurrent load through the gateway to build queue depth. The generator holds
-  a fixed number of requests in flight for the whole duration — that is what keeps
-  `num_requests_waiting` above the `ScaledObject` threshold long enough for KEDA to react. With
-  concurrency `16` against an engine that admits `--max-num-seqs=8`, at least 8 requests are always
-  waiting. It is standard-library Python (no `pip install`), and reads `HOST`, `MODEL_PATH`,
-  `MODEL_NAME`, and `API_KEY` from the environment you exported above. Start it in the background and
-  tee its progress to a log:
+TIP: Use *sustained* load, not a burst. A one-shot burst fires all requests at once and drains before the ~30s UWM scrape and 15s KEDA poll can observe the queue — so the metric never crosses the threshold and nothing scales. The generator below holds a fixed number of requests in flight for the full duration, keeping `num_requests_waiting` above the `ScaledObject` threshold long enough for KEDA to react. With concurrency `16` against `--max-num-seqs=8`, roughly 8 requests stay queued → the deployment scales to 2 replicas (`ceil(8 / threshold 5)`). Raise concurrency to `-c 32` to push toward `maxReplicaCount` (4).
+
+. Generate sustained concurrent load through the gateway. The script reads `HOST`, `MODEL_PATH`, `MODEL_NAME`, and `API_KEY` from the environment you exported above (standard-library Python, no `pip install`):
 +
 [source,bash,role="execute",subs="attributes"]
 ----
 python3 manifests/06-llmd/load/load-test.py -c 16 -d 300 > /tmp/llmd-load.log 2>&1 &
 ----
-+
-[NOTE]
-====
-A one-shot burst fires every request at
-once and drains before the ~30s user-workload-monitoring scrape and 15s KEDA poll can observe the
-queue — so the metric never crosses the threshold and nothing scales. The burst also _under-reports
-tokens_: at a large `max_tokens` the completions run past the gateway's 30s route timeout and return
-`504`/`500` with no `usage` body, so Limitador meters *0 tokens* for them even though each still
-counts as an authorized request (this is the "many requests, 100% success, 0 tokens" you would see on
-the dashboard). The generator instead sustains the queue and keeps `--max-tokens` small (`32`) so
-completions finish under the timeout and their tokens are metered.
-
-With `-c 16` against `--max-num-seqs=8`, roughly 8 requests stay queued, so the deployment scales to
-2 replicas (`ceil(8 / threshold 5)`). To push toward `maxReplicaCount` (4), raise concurrency —
-`-c 32` keeps ~24 waiting (`ceil(24 / 5) = 4`).
-====
 
 . Watch the HPA drive the replica count. As `num_requests_waiting` crosses the threshold, the HPA's
   `TARGETS` climbs above `5` and `REPLICAS` rises (to `2` at `-c 16`), then settles back to
@@ -359,6 +343,11 @@ increase(authorized_hits{subscription="qwen25-05b-llmd-demo"}[5m])
 * `authorized_hits{subscription="qwen25-05b-llmd-demo"}` is non-zero — the scaling traffic was
   governed and metered by MaaS, and the llm-d model now appears in the Module 5 telemetry panels.
 
+[NOTE]
+====
+*This exercise is reference-only — it cannot be run on this CPU-only cluster.* The `VariantAutoscaling` CRD is not registered here (`spec.components.wva` is absent from this cluster's `DataScienceCluster`). Read it as guidance for GPU-enabled environments; Exercises 1–5 above are the hands-on path.
+====
+
 == Exercise 6 (Reference): Workload Variant Autoscaler on GPU
 
 On a GPU-enabled {rhoai} {rhoai_version} cluster, the *Workload Variant Autoscaler (WVA)* is the
@@ -381,14 +370,21 @@ automatically. No `ScaledObject`, RBAC, or `ClusterTriggerAuthentication` are au
 
 == Module summary
 
-* You installed the llm-d prerequisites and the Custom Metrics Autoscaler, and deployed an
-  `LLMInferenceService` attached to the MaaS gateway.
-* You published the model through MaaS with a dedicated high-limit subscription, then authorized
-  KEDA against user-workload monitoring and scaled the deployment with a `ScaledObject` driven by
-  vLLM queue depth — no GPU required.
-* You drove load through the MaaS gateway, watched replicas scale, correlated the scale event with
-  the `kserve_vllm` queue and KV-cache metrics *and* the per-subscription token telemetry that came
-  for free, and saw how the Workload Variant Autoscaler delivers the same capability on GPU.
+**What you accomplished:**
+
+* Installed the Custom Metrics Autoscaler (KEDA) and deployed `{cpu_model}` as an `LLMInferenceService` attached to `maas-default-gateway`
+* Published the model through MaaS with a high-limit subscription and authorized KEDA to read queue-depth metrics from user-workload monitoring
+* Drove sustained concurrent load through the gateway, watched replicas scale, and correlated the scale event with vLLM queue-depth and per-subscription token telemetry
+
+**Key takeaways:**
+
+* KEDA scales on inference signals (queue depth) rather than generic CPU/memory — `spec.replicas` must be *unset* in the `LLMInferenceService` or the llm-d controller fights KEDA and replicas never hold
+* Sustained load is required: a one-shot burst drains before the ~30s UWM scrape and 15s KEDA poll can observe the queue — nothing scales
+* Publishing the scaling model through MaaS gives autoscaling and governance together — the load test traffic lands in the same per-subscription telemetry built in Module 5
+
+**Next steps:**
+
+Proceed to xref:07-conclusion.adoc[Conclusion] for a recap of the full platform you've built, and xref:08-cleanup.adoc[Cleanup] to tear it down when you're done.
 
 == References
 
@@ -399,4 +395,3 @@ automatically. No `ScaledObject`, RBAC, or `ClusterTriggerAuthentication` are au
 * Reference code:
 ** https://github.com/llm-d/llm-d[llm-d/llm-d] (workload-autoscaling guide)
 
-Continue to xref:07-conclusion.adoc[Conclusion].

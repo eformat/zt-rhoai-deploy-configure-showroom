@@ -58,6 +58,8 @@ oc wait inferenceservice/qwen25-05b -n {project_name} --for=condition=Ready --ti
 oc get inferenceservice qwen25-05b -n {project_name}
 ----
 
+The model is deployed and listening. Now let's make your first authenticated inference request.
+
 == Exercise 2: Query the OpenAI-compatible API
 
 . Because the model is exposed (Exercise 1), `.status.url` is the *external* HTTPS route, reachable
@@ -100,10 +102,14 @@ every reply trips the route's 30s timeout.)
 curl -sk -o /dev/null -w "%{http_code}\n" $URL/v1/models
 ----
 
+Now that you've called the model successfully, let's map exactly where this deployment sits on the access-control spectrum — and why that matters before you move to production.
+
 == Exercise 3: Understand the access-control options
 
 The way you deployed the model in Exercise 1 is one point on a spectrum. Access is controlled by two
-independent settings on the `InferenceService`, so you pick the level that fits per model:
+independent settings on the `InferenceService` — *visibility* (internal vs. external route) and *token auth* (unauthenticated vs. RBAC-protected) — so you can mix them per model:
+
+NOTE: These two settings are orthogonal. You can expose a model externally without requiring a token, or keep an authenticated model internal-only. The combination you choose in Exercise 1 — external *and* token-authenticated — is the right default for any model you wouldn't want wide-open.
 
 [cols="1,3,2",options="header"]
 |===
@@ -197,9 +203,21 @@ resource requests.
 
 == Module summary
 
-* You served `{cpu_model}` on vLLM on a CPU-only cluster and got a 200 from `/v1/completions`.
-* You reached the model over a *token-authenticated* external route, and saw the access-control
-  options (internal / external / token auth / governed MaaS).
+**What you accomplished:**
+
+* Deployed `{cpu_model}` on vLLM CPU and confirmed the `InferenceService` reached `Ready`
+* Sent an authenticated inference request to the OpenAI-compatible `/v1/completions` endpoint
+* Inspected the full access-control spectrum from internal-only to token auth to governed MaaS
+
+**Key takeaways:**
+
+* KServe creates and manages the external `Route` — you configure it with annotations on the `InferenceService`, not a separate Route resource
+* The `kube-rbac-proxy` sidecar enforces authorization per request via SubjectAccessReview — a valid token alone is not enough; the ServiceAccount needs the matching RBAC `Role`
+* Token-per-model auth works for isolated deployments, but governed access (Module 5) is the right destination for shared or production endpoints
+
+**Next steps:**
+
+Token auth protects the endpoint but leaves rate limits and usage accounting to you. Continue to xref:05-maas-governance.adoc[Module 5] to layer on {maas}: self-service API keys, per-subscription rate limits, and centralized telemetry across all your models.
 
 == References
 
@@ -210,4 +228,3 @@ resource requests.
 * Reference code:
 ** https://github.com/vllm-project/vllm[vllm-project/vllm]
 
-Continue to xref:05-maas-governance.adoc[Module 5: MaaS Governance].

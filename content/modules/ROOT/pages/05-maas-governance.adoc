@@ -64,6 +64,8 @@ oc rollout status deploy/postgres -n redhat-ods-applications
 
 * The `postgres` deployment is `Available` and both secrets exist in `redhat-ods-applications`.
 
+With the database running, let's install the API gateway layer that MaaS uses to enforce subscriptions.
+
 == Exercise 2: Install Red Hat Connectivity Link and bootstrap the gateway
 
 The order matters here. The Kuadrant custom resource and the gateway both depend on
@@ -102,12 +104,9 @@ oc apply -f manifests/05-maas/connectivity-link/kuadrant.yaml
 oc wait --for=condition=Ready kuadrant/kuadrant -n kuadrant-system --timeout=5m
 ----
 
-. Let Authorino trust the cluster service CA. When the Kuadrant CR becomes `Ready` the operator
-creates the default `Authorino` instance. Its MaaS authorization calls back to `maas-api` over the
-service's HTTPS port, whose certificate is signed by the OpenShift *service-serving* CA — which the
-Authorino image does not trust by default. Without this, the subscription check fails TLS
-verification, every request is denied, and `+/maas-api/v1/models+` comes back empty. Create the two
-auto-injected CA `ConfigMaps` and mount them into Authorino's certificate directory:
+. Let Authorino trust the cluster service CA — without this, the subscription check fails TLS verification and `+/maas-api/v1/models+` returns empty.
++
+WARNING: This step adds trusted CA material only. Do *not* enable Authorino's `listener` or `oidcServer` TLS — the Kuadrant `ext_authz` filter speaks plaintext gRPC on `:50051`, and enabling TLS there makes every authorized request return `500`.
 +
 [source,bash,role="execute"]
 ----
@@ -118,14 +117,6 @@ oc wait --for=jsonpath='{.data.service-ca\.crt}' configmap/authorino-service-ca 
 oc patch authorino authorino -n kuadrant-system --type=merge -p '{"spec":{"volumes":{"items":[{"name":"ca-trust","mountPath":"/etc/pki/tls/certs","configMaps":["authorino-trusted-ca-bundle","authorino-service-ca"]}]}}}'
 oc rollout status deploy/authorino -n kuadrant-system --timeout=5m
 ----
-+
-[NOTE]
-====
-Leave Authorino's `listener` and `oidcServer` TLS *disabled* (the operator default). The Kuadrant
-`ext_authz` filter talks to Authorino over plaintext gRPC on `:50051`; enabling the TLS listener
-breaks that path and turns every authorized request into a `500`. This step only adds *trusted CA
-material*, it does not enable a TLS listener.
-====
 
 . Create the MaaS gateway. The manifests carry a `$\{CLUSTER_DOMAIN}` placeholder, so they are
 built with `oc kustomize` and rendered through `envsubst` before applying — the gateway name,
@@ -171,6 +162,10 @@ oc wait --for=condition=Programmed gateway/maas-default-gateway \
 oc get route maas-gateway-route -n openshift-ingress
 ----
 
+TIP: The `maas-default-gateway` is now your single entry point for all governed model traffic. Every model published through MaaS shares this gateway, which enforces API-key authentication, subscription rate limits, and telemetry at the network layer — before a request reaches vLLM.
+
+With the gateway programmed, let's prepare the observability stack and then enable MaaS itself.
+
 [TIP]
 ====
 *Enable the Connectivity Link console plugin (optional, handy for debugging).* {rhcl} ships a
@@ -194,23 +189,20 @@ The console reloads after a few seconds; the *Connectivity Link* and *Connectivi
 Catalog* menus then appear in the left nav.
 ====
 
-== Exercise 3: Enable MaaS in the DSC and dashboard
+== Exercise 3a: Enable User Workload Monitoring
 
-. Enable *User Workload Monitoring* (UWM). The {rhoai-short} operator creates `ServiceMonitor` /
-  `PodMonitor` resources next to each served model; UWM is the platform component that scrapes them
-  and federates the metrics into the cluster Thanos Querier
-  (`thanos-querier.openshift-monitoring`) that the dashboard's default *Cluster Prometheus*
-  datasource reads. Without it the *Observe & monitor* dashboard renders but every model panel
-  stays empty, and there is nothing for the {maas} token-usage or the Module 6 KEDA autoscaler to
-  read. Enable it first so the stack is up by the time a model is serving:
+{rhoai-short} creates `ServiceMonitor` / `PodMonitor` resources next to each served model. User Workload Monitoring (UWM) scrapes them and federates the metrics into the cluster Thanos Querier that the dashboard reads. Enable it now, before any model is serving, so the stack is ready when you need it.
+
+NOTE: Without UWM, the *Observe & monitor* dashboard renders but every model panel stays empty. The Module 6 KEDA autoscaler also reads from UWM — so this is a prerequisite for autoscaling, not just observability.
+
+. Enable UWM:
 +
 [source,bash,role="execute"]
 ----
 oc apply -k manifests/05-maas/uwm
 ----
-+
-Wait for the user-workload monitoring stack to come up (the StatefulSet is created a few seconds
-after the ConfigMap is applied):
+
+. Wait for the user-workload monitoring stack to come up:
 +
 [source,bash,role="execute"]
 ----
@@ -220,20 +212,30 @@ done
 oc rollout status statefulset/prometheus-user-workload -n openshift-user-workload-monitoring --timeout=5m
 ----
 
-. Install the serving-path operators the `LLMInferenceService` depends on — *Leader Worker Set*
-  and *JobSet* — *before* enabling MaaS in the DSC. KServe uses these to run the gateway-native
-  serving pods, and enabling MaaS while they are missing makes the `DataScienceCluster` report a
-  `LeaderWorkerSet not installed` warning. (They are also the llm-d prerequisites reused in
-  xref:06-llmd-scaling.adoc[Module 6].) The manifest creates only namespaces, operator groups, and
-  subscriptions, so it is safe to apply in one go:
+=== Verify
+
+* The `prometheus-user-workload` StatefulSet is `Ready` in `openshift-user-workload-monitoring`:
++
+[source,bash,role="execute"]
+----
+oc get statefulset prometheus-user-workload -n openshift-user-workload-monitoring
+----
+
+Now that metrics will flow, let's install the serving-path and observability operators that MaaS depends on.
+
+== Exercise 3b: Install serving-path and observability operators
+
+IMPORTANT: Install the serving-path operators *before* enabling MaaS in the `DataScienceCluster`. Enabling MaaS while Leader Worker Set or JobSet are missing causes the DSC to report a `LeaderWorkerSet not installed` warning and the `maas-controller` will not start cleanly.
+
+. Install *Leader Worker Set* and *JobSet* — the serving-path operators the `LLMInferenceService`
+  depends on. (These are also the llm-d prerequisites reused in xref:06-llmd-scaling.adoc[Module 6].):
 +
 [source,bash,role="execute"]
 ----
 oc apply -k manifests/05-maas/serving-operators
 ----
 
-. Wait for both operator CSVs to reach `Succeeded` — their activation CRDs are not registered
-  until the installs complete:
+. Wait for both operator CSVs to reach `Succeeded`:
 +
 [source,bash,role="execute"]
 ----
@@ -249,9 +251,7 @@ oc wait --for=jsonpath='{.status.phase}'=Succeeded \
   -n openshift-jobset-operator --timeout=5m
 ----
 
-. Activate both operators by creating their singleton `cluster` CRs. The
-  `LeaderWorkerSetOperator` / `JobSetOperator` CRDs exist only after the CSVs above are
-  `Succeeded`, which is why they are applied separately from the subscriptions:
+. Activate both operators by creating their singleton `cluster` CRs. Their CRDs are not registered until the CSVs above report `Succeeded`, which is why this step is separate from the subscriptions:
 +
 [source,bash,role="execute"]
 ----
@@ -268,7 +268,7 @@ oc apply -f manifests/05-maas/serving-operators/operator-config.yaml
 oc apply -k manifests/05-maas/observability-operators
 ----
 
-. Wait for both operator CSVs to reach `Succeeded`:
+. Wait for both operator CSVs to reach `Succeeded`, then wait for the {rhoai-short} operator to build the `MonitoringStack`:
 +
 [source,bash,role="execute"]
 ----
@@ -282,30 +282,21 @@ oc wait --for=jsonpath='{.status.state}'=AtLatestKnown \
 oc wait --for=jsonpath='{.status.phase}'=Succeeded \
   csv/$(oc get subscription opentelemetry-product -n openshift-opentelemetry-operator -o jsonpath='{.status.currentCSV}') \
   -n openshift-opentelemetry-operator --timeout=5m
-----
-+
-Once COO is installed (and DSCI monitoring is already `Managed` from the base install), the
-{rhoai-short} operator builds the `data-science-monitoringstack` (Prometheus + Thanos) and the
-`data-science-perses` instance in `redhat-ods-monitoring`. Wait for the monitoring `ConfigMap`
-that the next step depends on to appear:
-+
-[source,bash,role="execute"]
-----
 until oc get configmap prometheus-web-tls-ca -n redhat-ods-monitoring >/dev/null 2>&1; do
   echo "waiting for the RHOAI operator to build the MonitoringStack..."; sleep 10
 done
 ----
 
-. Apply two small workarounds for a known {rhoai} {rhoai_version} + COO version gap (see the note
-  below), then restart Prometheus so it remounts the new secret:
+. Apply two compatibility fixes for a known {rhoai} {rhoai_version} + COO 1.5.1 version gap, then restart Prometheus so it picks them up:
++
+NOTE: {rhoai} {rhoai_version} was built against an older COO than the one currently in the catalog. Two generated resources no longer pass COO 1.5.1 validation: the default `PersesDatasource` omits a required `caCert.namespace` field (causing dashboard panels to show `No datasource found`), and `prometheus-web-tls-ca` is created as a `ConfigMap` but referenced as a `Secret` (leaving Prometheus stuck in `Init`). These steps fix both. They become unnecessary once {rhoai-short} ships aligned with COO 1.5.x.
 +
 [source,bash,role="execute"]
 ----
-# 1) The default Perses "Cluster Prometheus" datasource the dashboard panels resolve to.
+# 1) Re-create the default Perses datasource with the required caCert.namespace field.
 oc apply -k manifests/05-maas/observability-datasource
 
-# 2) Mirror the service-ca bundle into a Secret of the same name (the COO MonitoringStack
-#    references prometheus-web-tls-ca as a Secret; RHOAI creates it as a ConfigMap).
+# 2) Mirror the service-ca bundle into a Secret of the same name.
 oc create secret generic prometheus-web-tls-ca -n redhat-ods-monitoring \
   --from-literal=service-ca.crt="$(oc get cm prometheus-web-tls-ca -n redhat-ods-monitoring -o jsonpath='{.data.service-ca\.crt}')" \
   --dry-run=client -o yaml | oc apply -f -
@@ -315,25 +306,27 @@ oc delete pod -l app.kubernetes.io/name=prometheus -n redhat-ods-monitoring --ig
 oc wait --for=condition=Available monitoringstack/data-science-monitoringstack \
   -n redhat-ods-monitoring --timeout=10m
 ----
+
+=== Verify
+
+* LWS and JobSet CSVs report `Succeeded`:
 +
-[NOTE]
-====
-*Why these workarounds?* {rhoai} {rhoai_version} was built against an older Cluster Observability
-Operator than the one currently in the catalog (COO 1.5.1), and two of the resources the RHOAI
-Monitoring controller generates no longer pass the newer CRD/stack validation:
+[source,bash,role="execute"]
+----
+oc get csv -n openshift-lws-operator
+oc get csv -n openshift-jobset-operator
+----
+* The `data-science-monitoringstack` is `Available` and Prometheus is running:
++
+[source,bash,role="execute"]
+----
+oc get monitoringstack data-science-monitoringstack -n redhat-ods-monitoring
+oc get pod -l app.kubernetes.io/name=prometheus -n redhat-ods-monitoring
+----
 
-* The controller's `PersesDatasource` (`cluster-prometheus-datasource`, the *default* datasource
-  every panel resolves to) omits `caCert.namespace`, which COO 1.5.1 now requires — so the apply
-  fails and the datasource is never created. Panels then error with
-  `No datasource found for kind 'PrometheusDatasource' and name 'undefined'`. The manifest
-  re-creates it (plus its `ServiceAccount`, RBAC, and token secret) with the required field; the
-  operator then adopts it and `Monitoring` reports `Ready=True`.
-* RHOAI creates `prometheus-web-tls-ca` as a `ConfigMap`, but the COO 1.5.1 `MonitoringStack`
-  references it as a `Secret`, leaving the Prometheus pod stuck in `Init`. Mirroring the CA into a
-  like-named `Secret` (both can coexist) unblocks it.
+With the observability stack healthy, let's enable MaaS in the platform and surface it in the dashboard.
 
-Both steps become unnecessary once RHOAI ships a build aligned with COO 1.5.x.
-====
+== Exercise 3c: Enable MaaS in the DSC and dashboard
 
 . Enable MaaS in the `DataScienceCluster` and the dashboard:
 +
@@ -349,9 +342,7 @@ This sets `spec.components.kserve.modelsAsService.managementState: Managed` in t
 `DataScienceCluster`, and turns on the `modelAsService` and `observabilityDashboard` dashboard
 feature flags in `OdhDashboardConfig`.
 
-. Restart the dashboard so it picks up the new feature flags and the now-available MaaS backend.
-  The dashboard pods were started before MaaS was enabled, so without this the *Models as a
-  Service* view and the *Observe & monitor* nav do not appear:
+. Restart the dashboard to pick up the new feature flags. The dashboard pods started before MaaS was enabled, so without this the *Models as a Service* view and the *Observe & monitor* nav do not appear:
 +
 [source,bash,role="execute"]
 ----
@@ -377,13 +368,13 @@ oc get monitoringstack data-science-monitoringstack -n redhat-ods-monitoring
   *Request success rate* panels show *No data* until a model is served and called (this is a
   CPU-only cluster with no GPUs; the model panels populate after Exercises 4-7).
 
+With the MaaS backend active and the dashboard refreshed, let's deploy a model under governed access.
+
 == Exercise 4: Deploy the model as an LLMInferenceService
 
-MaaS governs models served as an `LLMInferenceService` — the gateway-native KServe serving object
-— so publish `{cpu_model}` again in that form, wired to the MaaS gateway. The plain
-`InferenceService` from Module 4 stays as-is; `MaaSModelRef` only accepts an `LLMInferenceService`
-or an `ExternalModel`, never a plain `InferenceService`. The serving-path operators it depends on
-(Leader Worker Set, JobSet) were installed in Exercise 3.
+NOTE: An `LLMInferenceService` is MaaS's gateway-native serving object — a superset of the `InferenceService` you used in Module 4. The key difference: it registers directly with `maas-default-gateway`, so every request flows through rate-limit enforcement before reaching vLLM. The `MaaSModelRef` CR only accepts an `LLMInferenceService` or an `ExternalModel`; the plain `InferenceService` from Module 4 remains serving under its own token-auth route and is unchanged.
+
+Publish `{cpu_model}` in `LLMInferenceService` form, wired to the MaaS gateway.
 
 . Deploy the model as an `LLMInferenceService` wired to the MaaS gateway:
 +
@@ -403,6 +394,8 @@ oc wait --for=condition=Ready llminferenceservice/qwen25-05b-maas -n {project_na
 ----
 oc get llminferenceservice qwen25-05b-maas -n {project_name}
 ----
+
+The model is serving through the gateway. Now let's wire up the governance layer: subscription, auth policy, and telemetry.
 
 == Exercise 5: Publish and govern the model
 
@@ -470,6 +463,8 @@ oc get maassubscription,maasauthpolicy -n models-as-a-service
 oc get telemetry,telemetrypolicy -n openshift-ingress
 ----
 
+Governance is in place. Let's mint an API key and make your first governed inference request.
+
 == Exercise 6: Mint an API key and call the model
 
 MaaS issues API keys through the `maas-api` endpoint, not as a Kubernetes Secret. Authenticate with
@@ -528,6 +523,8 @@ even time out once — run it again and it returns in ~2s.
 * The chat request returns *HTTP 200* with a completion. A request with no `Authorization` header
   returns *HTTP 401*.
 
+Now let's verify the subscription limit is actually being enforced — not just set.
+
 == Exercise 7: Demonstrate rate limiting
 
 Send requests beyond the subscription's token limit and observe throttling. This reuses the
@@ -546,11 +543,13 @@ done | sort | uniq -c
 
 * Requests exceeding the subscription limit return *HTTP 429*.
 
+The rate limiter is working. Now let's see those 429s — and the token consumption behind them — in the metrics stack.
+
 == Exercise 8: View engine metrics and MaaS telemetry
 
-The traffic from Exercises 6 and 7 has produced metrics. Because User Workload Monitoring was
-enabled in Exercise 3, the served model's `kserve_vllm` series are now in the cluster Thanos and
-the {maas} gateway's token usage is broken out per subscription.
+NOTE: Two separate metric paths converge on the dashboard here. *Engine metrics* (`kserve_vllm:*` series) flow from vLLM → `ServiceMonitor` → User Workload Monitoring (Exercise 3a) → Thanos Querier → the OCP console *Observe -> Metrics* page. *MaaS telemetry* (`authorized_hits`, `limited_calls`) flows from the Limitador rate limiter → Istio `Telemetry` + Kuadrant `TelemetryPolicy` (Exercise 5) → the {rhoai-short} dashboard *Observe & monitor* view. They measure different things: engine metrics show what vLLM processed; MaaS telemetry shows what the gateway counted against the subscription limit.
+
+The traffic from Exercises 6 and 7 has populated both paths.
 
 . View *vLLM engine throughput*. In the {ocp} console, go to *Observe -> Metrics* and run these
   queries. The workshop drives the model in short manual bursts, so an instantaneous `rate(...)`
@@ -676,11 +675,21 @@ This returns `True`.
 
 == Module summary
 
-* You enabled {maas} (Technology Preview) end-to-end: database, gateway, DSC/dashboard, an
-  `LLMInferenceService`, and the governance CRs.
-* A minted API key reaches the model through the gateway, and requests over quota return 429.
-* You enabled User Workload Monitoring so served-model metrics reach the dashboard, then viewed
-  vLLM engine metrics and MaaS per-subscription token telemetry.
+**What you accomplished:**
+
+* Stood up the full {maas} stack: PostgreSQL, gateway ({rhcl}/Kuadrant), User Workload Monitoring, serving-path operators, and observability backend
+* Published `{cpu_model}` as an `LLMInferenceService` governed by a `MaaSSubscription` with a 100-token/minute rate limit
+* Minted an API key, called the model through the gateway, triggered rate limiting (HTTP 429), and observed token telemetry per subscription
+
+**Key takeaways:**
+
+* Ordering is critical: the database must be running before MaaS is enabled in the DSC, and the serving-path operators (LWS, JobSet) must be installed before MaaS activation
+* `LLMInferenceService` is MaaS's gateway-native object — it registers directly with the gateway; `MaaSModelRef` does not accept a plain `InferenceService`
+* Two metric paths feed the dashboard: vLLM engine metrics via User Workload Monitoring → Thanos, and MaaS token telemetry via Limitador → Kuadrant `TelemetryPolicy`
+
+**Next steps:**
+
+Continue to xref:06-llmd-scaling.adoc[Module 6] to add autoscaling: deploy `{cpu_model}` as an llm-d `LLMInferenceService` and configure a KEDA `ScaledObject` that scales on vLLM queue depth.
 
 == References
 
@@ -694,4 +703,3 @@ This returns `True`.
 ** https://github.com/opendatahub-io/models-as-a-service[opendatahub-io/models-as-a-service] (upstream)
 ** https://github.com/vllm-project/vllm[vllm-project/vllm] (engine metrics)
 
-Continue to xref:06-llmd-scaling.adoc[Module 6: Scaling llm-d].

@@ -11,8 +11,9 @@ dependencies are torn down cleanly.
 
 [source,bash,role="execute",subs="attributes"]
 ----
-# Module 6 — llm-d + WVA
-oc delete -k manifests/06-llmd/autoscaling -n {project_name} --ignore-not-found
+# Module 6 — llm-d + KEDA
+oc delete -k manifests/06-llmd/autoscaling-keda -n {project_name} --ignore-not-found
+oc delete -k manifests/06-llmd/maas-subscription --ignore-not-found
 oc delete -k manifests/06-llmd/service -n {project_name} --ignore-not-found
 
 # Module 5 — MaaS (subscription manifests pin their own namespaces, so no -n flag)

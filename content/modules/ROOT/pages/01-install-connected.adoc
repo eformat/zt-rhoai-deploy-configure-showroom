@@ -44,6 +44,8 @@ oc wait csv -n redhat-ods-operator \
 oc get csv -n redhat-ods-operator -o jsonpath='{.items[?(@.spec.displayName=="Red Hat OpenShift AI")].status.phase}{"\n"}'
 ----
 
+Now that the operator is running, let's tell it what to do by creating the `DataScienceCluster`.
+
 == Exercise 2: Create the DataScienceCluster
 
 The `DataScienceCluster` (DSC) turns on {rhoai-short} components. This workshop needs, at minimum,
@@ -72,6 +74,8 @@ oc wait datasciencecluster/default-dsc --for=condition=Ready --timeout=15m
 oc get datasciencecluster default-dsc -o jsonpath='{.status.phase}{"\n"}'
 ----
 
+With the cluster ready, let's open the dashboard so you can see {rhoai-short} from the platform administrator's perspective.
+
 == Exercise 3: Open the RHOAI dashboard
 
 . Get the dashboard route and open it in a browser:
@@ -87,6 +91,10 @@ oc get route rhods-dashboard -n redhat-ods-applications -o jsonpath='https://{.s
 
 * The dashboard route returns HTTP 200 and the landing page renders.
 
+TIP: Take a moment to orient yourself to the dashboard. The left navigation includes *Data Science Projects*, *Model Serving*, and *Settings*. As a platform admin you also see the *Settings* menu where you will enable features in later modules. Everything the dashboard surfaces, you can also control via `oc` — which is exactly what the rest of this workshop does.
+
+With the dashboard confirmed, let's verify the namespace structure that underpins it.
+
 == Exercise 4: Confirm the predefined namespaces
 
 [source,bash,role="execute"]
@@ -100,9 +108,21 @@ oc get ns redhat-ods-operator redhat-ods-applications rhods-notebooks
 
 == Module summary
 
-* You installed the {rhoai} Operator and confirmed its CSV reached `Succeeded`.
-* You created a `DataScienceCluster` that reached `Ready` with the dashboard and KServe enabled.
-* You logged into the {rhoai-short} dashboard.
+**What you accomplished:**
+
+* Installed the {rhoai} Operator and confirmed its CSV reached `Succeeded`
+* Created a `DataScienceCluster` that enabled the dashboard and KServe
+* Logged into the {rhoai-short} dashboard and confirmed the predefined namespaces
+
+**Key takeaways:**
+
+* Operator + DSC is a two-step install: the operator is the engine, the DSC is the configuration
+* The `DataScienceCluster` controls which {rhoai-short} components are active — you will return to it in later modules
+* Three namespaces (`redhat-ods-operator`, `redhat-ods-applications`, `rhods-notebooks`) define {rhoai-short}'s footprint on the cluster
+
+**Next steps:**
+
+If your cluster is air-gapped, follow xref:02-install-disconnected.adoc[Module 2] to mirror images and install from a private registry. Otherwise, skip ahead to xref:03-model-serving-platform.adoc[Module 3] to configure the model-serving platform.
 
 == References
 

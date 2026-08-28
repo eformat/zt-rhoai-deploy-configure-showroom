@@ -17,15 +17,13 @@ Congratulations — you have deployed, configured, served, governed, scaled, and
 * *Module 5 — MaaS Governance* (Tech Preview): Governed access with subscriptions, API keys, and
   token rate limiting; enabled User Workload Monitoring and viewed vLLM engine metrics and MaaS
   per-subscription token telemetry.
-* *Module 6 — Scaling with llm-d + WVA* (Tech Preview): Scaled distributed inference on
-  inference-specific signals, and correlated the scale event with the metrics that drove it.
+* *Module 6 — Scaling llm-d + KEDA* (Tech Preview): Scaled distributed inference on vLLM queue depth with KEDA (CPU path), correlated the scale event with the metrics that drove it, and reviewed the Workload Variant Autoscaler as the equivalent GPU-path alternative.
 
 == Where to go next
 
-* Enable GPUs and swap in larger validated models (Granite, Llama) — the runtime and hardware-profile
-  hooks are already in place.
-* Harden the disconnected pipeline for your registry and air-gap policy.
-* Promote the Technology Preview modules once the features reach GA.
+* *Add GPU nodes* — the `vllm-cuda-rhel9` runtime template and hardware-profile hooks are already in place. Swap the CPU `InferenceService` for a GPU-enabled one and the Workload Variant Autoscaler (Exercise 6) is your scaling path.
+* *Harden the disconnected pipeline* — add your internal registry credentials to `imageset-config.yaml` and mirror the full RHOAI + OCP platform payload for a from-scratch air-gap install (see the Module 2 references).
+* *Promote Tech Preview features* — watch the {rhoai-short} release notes for MaaS and llm-d reaching GA; the manifests in this workshop are already structured for that transition.
 
 == Resources
 
