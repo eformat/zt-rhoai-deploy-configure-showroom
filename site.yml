@@ -1,6 +1,6 @@
 ---
 site:
-  title: "RHOAI 3.4 Deploy & Configure Workshop"
+  title: "RHOAI Deploy & Configure Workshop"
   url: https://eformat.github.io/zt-rhoai-deploy-configure-showroom
   start_page: modules::index.adoc
 

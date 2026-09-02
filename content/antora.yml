@@ -1,5 +1,5 @@
 name: modules
-title: "RHOAI 3.4 Deploy & Configure Workshop"
+title: "RHOAI Deploy & Configure Workshop"
 version: ~
 nav:
   - modules/ROOT/nav.adoc
