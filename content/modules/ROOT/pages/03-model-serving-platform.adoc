@@ -74,12 +74,9 @@ Now that serving is enabled cluster-wide, let's make the vLLM CPU runtime availa
 == Exercise 3: Make a vLLM serving runtime available
 
 {rhoai-short} {rhoai_version} ships a set of vLLM serving runtimes out of the box. On a CPU-only
-cluster the relevant one is *vLLM CPU (x86) ServingRuntime for KServe*
-ifeval::["{rhoai_version}" == "3.4"]
-(Technology Preview)
-endif::[]
-— it is pre-installed and enabled, and it uses the Red Hat-supported, digest-pinned vLLM CPU image,
-so you do not build or ship your own runtime.
+cluster the relevant one is *{vllm_cpu_runtime_label}* — it is pre-installed and enabled, and it
+uses the Red Hat-supported, digest-pinned vLLM CPU image, so you do not build or ship your own
+runtime.
 
 You can confirm it under *Settings -> Serving runtimes* in the {rhoai-short} dashboard (toggle
 *Enabled*). It is delivered as a runtime *template*: deploying a model through the dashboard
@@ -97,24 +94,13 @@ oc process -n redhat-ods-applications vllm-cpu-x86-runtime-template \
   | oc apply -n {project_name} -f -
 ----
 
-ifeval::["{rhoai_version}" == "3.4"]
 [source,bash,role="execute",subs="attributes"]
 ----
 oc annotate servingruntime vllm-cpu-x86-runtime -n {project_name} \
   opendatahub.io/template-name=vllm-cpu-x86-runtime-template \
-  "opendatahub.io/template-display-name=vLLM CPU (x86) ServingRuntime for KServe - Tech Preview" \
+  "opendatahub.io/template-display-name={vllm_cpu_runtime_label}" \
   --overwrite
 ----
-endif::[]
-ifeval::["{rhoai_version}" == "3.5"]
-[source,bash,role="execute",subs="attributes"]
-----
-oc annotate servingruntime vllm-cpu-x86-runtime -n {project_name} \
-  opendatahub.io/template-name=vllm-cpu-x86-runtime-template \
-  "opendatahub.io/template-display-name=vLLM CPU (x86) ServingRuntime for KServe" \
-  --overwrite
-----
-endif::[]
 
 === Verify
 

@@ -38,6 +38,8 @@ asciidoc:
     maas_gateway_url: https://maas.apps.cluster.example.com
     registry_url: registry.apps.cluster.example.com
     metrics_console_url: https://console-openshift-console.apps.cluster.example.com/monitoring
+    # --- Version-specific labels ---
+    vllm_cpu_runtime_label: "vLLM CPU (x86) ServingRuntime for KServe - Tech Preview"
     # --- Models ---
     cpu_model: "Qwen2.5-0.5B-Instruct"
     # --- Source repo for manifests ---
