@@ -26,14 +26,6 @@ In this activity you will log into {ocp}, open a terminal, and clone the worksho
 oc login {openshift_api_url} -u {user} -p {password} --insecure-skip-tls-verify=true
 ----
 
-. Confirm your session and cluster version:
-+
-[source,bash,role="execute"]
-----
-oc whoami
-oc version
-----
-
 === Verify
 
 * `oc whoami` returns `{user}`:
