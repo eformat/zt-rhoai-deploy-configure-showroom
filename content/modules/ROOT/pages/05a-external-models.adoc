@@ -1,0 +1,316 @@
+= Module 5a: External Models with MaaS
+:navtitle: Module 5a: External Models
+:toc: macro
+:toclevels: 1
+:icons: font
+
+The `ExternalModel` CRD lets you expose third-party LLM APIs — or any OpenAI-compatible endpoint —
+through the MaaS gateway. External models get the same API key management, subscription rate
+limits, authentication, and telemetry as locally-served models.
+
+In this module you deploy *llm-katan*, a lightweight simulator that mimics OpenAI, Anthropic,
+Azure OpenAI, Bedrock, and Vertex AI in echo mode. It runs entirely in-cluster — no real API keys
+or external internet access needed — making it an ideal vehicle for learning the {maas} external
+model workflow.
+
+[IMPORTANT]
+====
+*Technology Preview.* External model support is a Technology Preview feature in {rhoai}
+{rhoai_version}. APIs and behaviour may change.
+====
+
+== Prerequisites
+
+* xref:05-maas-governance.adoc[Module 5] complete (MaaS gateway running, at least one subscription
+  exists)
+* `helm` v3 installed on the bastion / workshop host
+* The workshop git repository cloned and the shell at its root
+
+== Learning objectives
+
+* Understand the {rhoai-short} {rhoai_version} external model resource model
+* Deploy and verify the llm-katan simulator (echo-mode, no GPU)
+* Publish simulator models through the MaaS gateway and call them with an API key
+* Observe all five provider types in *Gen AI studio -> AI asset endpoints*
+
+toc::[]
+
+ifeval::["{rhoai_version}" == "3.5"]
+== Resource model (RHOAI 3.5+)
+
+An external model in {rhoai-short} {rhoai_version} requires six resources:
+
+[cols="1,3",options="header"]
+|===
+|Resource |Purpose
+
+|`Secret`
+|Stores the provider API key. Must have the label `inference.llm-d.ai/ipp-managed: "true"` so the
+ Inference Payload Processor (IPP) injects it into upstream requests.
+
+|`ExternalProvider`
+|Defines the provider endpoint URL, auth type, and a reference to the credential Secret.
+
+|`ExternalModel`
+|Maps the client-facing model name to the provider with routing config (`apiFormat`, `path`,
+ `targetModel`).
+
+|`MaaSModelRef`
+|Registers the `ExternalModel` in the MaaS catalog so it appears in `/maas-api/v1/models`.
+
+|`MaaSAuthPolicy`
+|Grants access to specific users or groups.
+
+|`MaaSSubscription`
+|Sets token rate limits and subscription priority.
+|===
+
+NOTE: IPP (Inference Payload Processor) is deployed automatically into `openshift-ingress` by
+{rhoai-short} {rhoai_version}. It translates OpenAI chat format to each provider's native wire format
+before forwarding to the upstream endpoint.
+
+endif::[]
+
+ifeval::["{rhoai_version}" == "3.4"]
+== Resource model (RHOAI 3.4)
+
+An external model in {rhoai-short} {rhoai_version} requires five resources:
+
+[cols="1,3",options="header"]
+|===
+|Resource |Purpose
+
+|`Secret`
+|Stores the provider API key. Must have the label
+ `inference.networking.k8s.io/bbr-managed: "true"` so the BBR ext-proc injects it into upstream
+ requests.
+
+|`ExternalModel`
+|Defines the provider endpoint, auth type, credential reference, and target model in a single CR.
+
+|`MaaSModelRef`
+|Registers the `ExternalModel` in the MaaS catalog.
+
+|`MaaSAuthPolicy`
+|Grants access to specific users or groups.
+
+|`MaaSSubscription`
+|Sets token rate limits and subscription priority.
+|===
+
+endif::[]
+
+ifeval::["{rhoai_version}" == "3.5"]
+== Exercise 1: Deploy the llm-katan simulator
+
+The llm-katan Helm chart deploys a simulator pod and creates `ExternalProvider` + `ExternalModel`
+CRs for each of the five supported provider types. The ExternalModel controller then creates the
+HTTPRoutes and Services that wire them to `maas-default-gateway`.
+
+. Deploy the simulator with `helm template` piped into `kubectl apply --server-side`. The
+  `--server-side` flag is required because the ExternalModel controller creates resources from the
+  ExternalModel CRs (HTTPRoutes, Services) that would otherwise conflict with `helm install`
+  field ownership:
++
+[source,bash,role="execute"]
+----
+helm template sim manifests/05-maas/llm-katan-simulator --skip-crds \
+  | kubectl apply --server-side --force-conflicts -f -
+----
+
+. Wait for the simulator to start. First boot installs llm-katan from PyPI (~60 s):
++
+[source,bash,role="execute"]
+----
+oc rollout status deployment/sim -n llm-katan --timeout=180s
+oc logs -n llm-katan deploy/sim --tail=5
+----
++
+Expected last log line: `LLM Katan ready on 0.0.0.0:8443`
+
+=== Verify
+
+* The simulator pod is `Running` and all five `ExternalModel` CRs are `Ready`:
++
+[source,bash,role="execute"]
+----
+oc get pod -n llm-katan
+oc get externalmodel -n llm-katan
+oc get maasmodelref -n llm-katan
+----
+* The models appear in the catalog:
++
+[source,bash,role="execute"]
+----
+export CLUSTER_DOMAIN=$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+export HOST="https://maas.${CLUSTER_DOMAIN}"
+curl -sSk "${HOST}/maas-api/v1/models" \
+  -H "Authorization: Bearer $(oc whoami -t)" | jq '[.data[].id]'
+----
++
+You should see `sim-openai`, `sim-anthropic`, `sim-azure-openai`, `sim-bedrock`, and
+`sim-vertex-openai` listed.
+
+== Exercise 2: Mint an API key and call each provider
+
+. Create a key scoped to the simulator subscription:
++
+[source,bash,role="execute"]
+----
+export CLUSTER_DOMAIN=$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+export HOST="https://maas.${CLUSTER_DOMAIN}"
+export SIM_KEY=$(curl -sSk -X POST "${HOST}/maas-api/v1/api-keys" \
+  -H "Authorization: Bearer $(oc whoami -t)" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"sim-key","expiresIn":"1h","subscription":"sim-models-subscription"}' | jq -r .key)
+echo "Simulator key: ${SIM_KEY:0:12}..."
+----
+
+. Call each provider endpoint (all return an echo of the input — no GPU or real model needed):
++
+[source,bash,role="execute"]
+----
+for model in sim-openai sim-anthropic sim-azure-openai sim-bedrock sim-vertex-openai; do
+  echo "--- ${model} ---"
+  curl -sSk "${HOST}/llm-katan/${model}/v1/chat/completions" \
+    -H "Authorization: Bearer ${SIM_KEY}" \
+    -H "Content-Type: application/json" \
+    -d "{\"model\":\"${model}\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}" \
+    | jq -r '.choices[0].message.content'
+done
+----
+
+=== Verify
+
+* Each provider returns a `200` response with an echo of the input message.
+* All five simulator models appear in *Gen AI studio -> AI asset endpoints* in the {rhoai-short}
+  dashboard.
+
+endif::[]
+
+ifeval::["{rhoai_version}" == "3.4"]
+== Exercise 1: Deploy the llm-katan simulator
+
+{rhoai-short} {rhoai_version} uses a single `ExternalModel` CR (no separate `ExternalProvider`). The
+static manifests in `manifests/05-maas/external-model-34/` deploy the simulator Deployment/Service
+and the 3.4-format `ExternalModel` CRs.
+
+. Apply the namespace and simulator:
++
+[source,bash,role="execute"]
+----
+oc apply -f manifests/05-maas/external-model-34/namespace.yaml
+oc apply -f manifests/05-maas/external-model-34/simulator.yaml -n llm-katan
+----
+
+. Create the simulator credential secret. Never store credentials in git — create them
+  imperatively. The label `inference.networking.k8s.io/bbr-managed: "true"` is required so the
+  BBR ext-proc injects the key into upstream requests:
++
+[source,bash,role="execute"]
+----
+oc create secret generic sim-openai-key \
+  --from-literal=api-key="sim-fake-key" \
+  -n llm-katan --dry-run=client -o yaml | oc apply -f -
+oc label secret sim-openai-key -n llm-katan \
+  inference.networking.k8s.io/bbr-managed=true --overwrite
+----
+
+. Apply the `ExternalModel` and MaaS governance CRs:
++
+[source,bash,role="execute"]
+----
+oc apply -f manifests/05-maas/external-model-34/external-model.yaml
+oc apply -f manifests/05-maas/external-model-34/maasmodelref.yaml
+oc apply -f manifests/05-maas/external-model-34/maasauthpolicy.yaml
+oc apply -f manifests/05-maas/external-model-34/maassubscription.yaml
+----
+
+. Wait for the simulator to start:
++
+[source,bash,role="execute"]
+----
+oc rollout status deployment/sim -n llm-katan --timeout=180s
+oc logs -n llm-katan deploy/sim --tail=5
+----
++
+Expected: `LLM Katan ready on 0.0.0.0:8443`
+
+=== Verify
+
+* The simulator pod is `Running` and the `ExternalModel` is `Ready`:
++
+[source,bash,role="execute"]
+----
+oc get pod -n llm-katan
+oc get externalmodel -n llm-katan
+oc get maasmodelref -n llm-katan
+----
+* The model appears in the catalog:
++
+[source,bash,role="execute"]
+----
+export CLUSTER_DOMAIN=$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+export HOST="https://maas.${CLUSTER_DOMAIN}"
+curl -sSk "${HOST}/maas-api/v1/models" \
+  -H "Authorization: Bearer $(oc whoami -t)" | jq '[.data[].id]'
+----
+
+== Exercise 2: Mint an API key and call the simulator
+
+. Create a key scoped to the simulator subscription:
++
+[source,bash,role="execute"]
+----
+export CLUSTER_DOMAIN=$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+export HOST="https://maas.${CLUSTER_DOMAIN}"
+export SIM_KEY=$(curl -sSk -X POST "${HOST}/maas-api/v1/api-keys" \
+  -H "Authorization: Bearer $(oc whoami -t)" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"sim-key","expiresIn":"1h","subscription":"sim-models-subscription"}' | jq -r .key)
+echo "Simulator key: ${SIM_KEY:0:12}..."
+----
+
+. Call the simulator endpoint:
++
+[source,bash,role="execute"]
+----
+curl -sSk "${HOST}/llm-katan/sim-openai/v1/chat/completions" \
+  -H "Authorization: Bearer ${SIM_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"sim-openai","messages":[{"role":"user","content":"Hello"}]}' \
+  | jq -r '.choices[0].message.content'
+----
+
+=== Verify
+
+* The call returns HTTP 200 with an echo response containing the input message.
+
+endif::[]
+
+== Cleanup
+
+To remove the simulator and all associated resources:
+
+ifeval::["{rhoai_version}" == "3.5"]
+[source,bash,role="execute"]
+----
+# Delete ExternalModel CRs first — allows the controller to clean up HTTPRoutes and Services.
+oc delete externalmodel -n llm-katan -l app.kubernetes.io/instance=sim
+# Remove the remaining chart resources.
+helm template sim manifests/05-maas/llm-katan-simulator --skip-crds \
+  | kubectl delete --ignore-not-found -f -
+oc delete namespace llm-katan
+----
+endif::[]
+
+ifeval::["{rhoai_version}" == "3.4"]
+[source,bash,role="execute"]
+----
+oc delete -f manifests/05-maas/external-model-34/maassubscription.yaml
+oc delete -f manifests/05-maas/external-model-34/maasauthpolicy.yaml
+oc delete -f manifests/05-maas/external-model-34/maasmodelref.yaml
+oc delete -f manifests/05-maas/external-model-34/external-model.yaml
+oc delete namespace llm-katan
+----
+endif::[]

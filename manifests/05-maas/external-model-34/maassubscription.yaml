@@ -1,0 +1,18 @@
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSSubscription
+metadata:
+  name: sim-models-subscription
+  namespace: models-as-a-service
+spec:
+  owner:
+    groups:
+      - name: system:authenticated
+    users: []
+  modelRefs:
+    - name: sim-openai
+      namespace: llm-katan
+      tokenRateLimits:
+        - limit: 50000
+          window: 1m
+  priority: 10

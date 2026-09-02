@@ -1,0 +1,14 @@
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSAuthPolicy
+metadata:
+  name: sim-models-access
+  namespace: models-as-a-service
+spec:
+  modelRefs:
+    - name: sim-openai
+      namespace: llm-katan
+  subjects:
+    groups:
+      - name: system:authenticated
+    users: []

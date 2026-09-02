@@ -89,28 +89,55 @@ phases into a single mirror-to-mirror run by using `docker://{registry_url}` in 
 
 . Review the imageset configuration (RHOAI operator + dependencies):
 +
+ifeval::["{rhoai_version}" == "3.4"]
 [source,bash,role="execute"]
 ----
 cat manifests/02-disconnected/imageset-config.yaml
 ----
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
+[source,bash,role="execute"]
+----
+cat manifests/02-disconnected/imageset-config-35.yaml
+----
+endif::[]
 
 . Mirror to disk — pulls the RHOAI catalog, operator, and dependent images into a local workspace:
 +
+ifeval::["{rhoai_version}" == "3.4"]
 [source,bash,role="execute"]
 ----
 oc-mirror --config manifests/02-disconnected/imageset-config.yaml \
   file://$HOME/oc-mirror-workspace --v2
 ----
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
+[source,bash,role="execute"]
+----
+oc-mirror --config manifests/02-disconnected/imageset-config-35.yaml \
+  file://$HOME/oc-mirror-workspace --v2
+----
+endif::[]
 
 . Push the saved images from disk to your private registry (run this from a host that can reach the
   registry; move the `oc-mirror-workspace` directory across the air gap first if needed):
 +
+ifeval::["{rhoai_version}" == "3.4"]
 [source,bash,role="execute",subs="attributes"]
 ----
 oc-mirror --config manifests/02-disconnected/imageset-config.yaml \
   --from file://$HOME/oc-mirror-workspace \
   docker://{registry_url} --v2
 ----
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
+[source,bash,role="execute",subs="attributes"]
+----
+oc-mirror --config manifests/02-disconnected/imageset-config-35.yaml \
+  --from file://$HOME/oc-mirror-workspace \
+  docker://{registry_url} --v2
+----
+endif::[]
 
 === Verify
 

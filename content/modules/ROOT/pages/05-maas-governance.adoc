@@ -104,6 +104,7 @@ oc apply -f manifests/05-maas/connectivity-link/kuadrant.yaml
 oc wait --for=condition=Ready kuadrant/kuadrant -n kuadrant-system --timeout=5m
 ----
 
+ifeval::["{rhoai_version}" == "3.4"]
 . Let Authorino trust the cluster service CA — without this, the subscription check fails TLS verification and `+/maas-api/v1/models+` returns empty.
 +
 WARNING: This step adds trusted CA material only. Do *not* enable Authorino's `listener` or `oidcServer` TLS — the Kuadrant `ext_authz` filter speaks plaintext gRPC on `:50051`, and enabling TLS there makes every authorized request return `500`.
@@ -117,6 +118,10 @@ oc wait --for=jsonpath='{.data.service-ca\.crt}' configmap/authorino-service-ca 
 oc patch authorino authorino -n kuadrant-system --type=merge -p '{"spec":{"volumes":{"items":[{"name":"ca-trust","mountPath":"/etc/pki/tls/certs","configMaps":["authorino-trusted-ca-bundle","authorino-service-ca"]}]}}}'
 oc rollout status deploy/authorino -n kuadrant-system --timeout=5m
 ----
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
+NOTE: {rhoai-short} {rhoai_version} pre-configures Authorino with the cluster service CA trust bundle — this step is no longer required.
+endif::[]
 
 . Create the MaaS gateway. The manifests carry a `$\{CLUSTER_DOMAIN}` placeholder, so they are
 built with `oc kustomize` and rendered through `envsubst` before applying — the gateway name,
@@ -287,9 +292,10 @@ until oc get configmap prometheus-web-tls-ca -n redhat-ods-monitoring >/dev/null
 done
 ----
 
+ifeval::["{rhoai_version}" == "3.4"]
 . Apply two compatibility fixes for a known {rhoai} {rhoai_version} + COO 1.5.1 version gap, then restart Prometheus so it picks them up:
 +
-NOTE: {rhoai} {rhoai_version} was built against an older COO than the one currently in the catalog. Two generated resources no longer pass COO 1.5.1 validation: the default `PersesDatasource` omits a required `caCert.namespace` field (causing dashboard panels to show `No datasource found`), and `prometheus-web-tls-ca` is created as a `ConfigMap` but referenced as a `Secret` (leaving Prometheus stuck in `Init`). These steps fix both. They become unnecessary once {rhoai-short} ships aligned with COO 1.5.x.
+NOTE: {rhoai} {rhoai_version} was built against an older COO than the one currently in the catalog. Two generated resources no longer pass COO 1.5.1 validation: the default `PersesDatasource` omits a required `caCert.namespace` field (causing dashboard panels to show `No datasource found`), and `prometheus-web-tls-ca` is created as a `ConfigMap` but referenced as a `Secret` (leaving Prometheus stuck in `Init`). These steps fix both.
 +
 [source,bash,role="execute"]
 ----
@@ -306,6 +312,19 @@ oc delete pod -l app.kubernetes.io/name=prometheus -n redhat-ods-monitoring --ig
 oc wait --for=condition=Available monitoringstack/data-science-monitoringstack \
   -n redhat-ods-monitoring --timeout=10m
 ----
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
+. Create the `PersesGlobalDatasource` for the Usage dashboard tab:
++
+NOTE: {rhoai-short} {rhoai_version} fixes the `caCert.namespace` bug and the `prometheus-web-tls-ca` ConfigMap/Secret mismatch. However, the *Usage* dashboard tab is rendered by a `PersesDashboard` deployed in the `redhat-ods-applications` project. Perses resolves datasources per-project, so the namespaced `PersesDatasource` in `redhat-ods-monitoring` is invisible to it. A `PersesGlobalDatasource` is cluster-scoped and visible to all Perses projects.
++
+[source,bash,role="execute"]
+----
+oc apply -k manifests/05-maas/observability-datasource/kustomization-35.yaml
+oc wait --for=condition=Available monitoringstack/data-science-monitoringstack \
+  -n redhat-ods-monitoring --timeout=10m
+----
+endif::[]
 
 === Verify
 
@@ -330,6 +349,7 @@ With the observability stack healthy, let's enable MaaS in the platform and surf
 
 . Enable MaaS in the `DataScienceCluster` and the dashboard:
 +
+ifeval::["{rhoai_version}" == "3.4"]
 [source,bash,role="execute"]
 ----
 oc patch datasciencecluster default-dsc --type merge \
@@ -341,6 +361,21 @@ oc patch odhdashboardconfig odh-dashboard-config -n redhat-ods-applications --ty
 This sets `spec.components.kserve.modelsAsService.managementState: Managed` in the
 `DataScienceCluster`, and turns on the `modelAsService` and `observabilityDashboard` dashboard
 feature flags in `OdhDashboardConfig`.
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
+[source,bash,role="execute"]
+----
+oc patch datasciencecluster default-dsc --type merge \
+  --patch-file manifests/05-maas/enable/dsc-maas-patch-35.yaml
+oc patch odhdashboardconfig odh-dashboard-config -n redhat-ods-applications --type merge \
+  --patch-file manifests/05-maas/enable/dashboard-maas-patch.yaml
+----
++
+This sets `spec.components.aigateway.modelsAsAService.managementState: Managed` in the
+`DataScienceCluster` (the {rhoai-short} {rhoai_version} path — `kserve.modelsAsService` is
+replaced by the dedicated `aigateway` component), and turns on the `modelAsService` and
+`observabilityDashboard` dashboard feature flags in `OdhDashboardConfig`.
+endif::[]
 
 . Restart the dashboard to pick up the new feature flags. The dashboard pods started before MaaS was enabled, so without this the *Models as a Service* view and the *Observe & monitor* nav do not appear:
 +
@@ -362,11 +397,23 @@ oc get monitoringstack data-science-monitoringstack -n redhat-ods-monitoring
 ----
 * After a browser refresh, the {rhoai-short} dashboard shows the *Models as a Service* view (AI
   asset endpoints, API keys) and an *Observe & monitor -> Dashboard (Tech Preview)* nav item.
+ifeval::["{rhoai_version}" == "3.4"]
 * On the *Observe & monitor -> Dashboard*, the *Cluster* tab renders live data (System health,
   Memory/CPU utilization, Inbound traffic) instead of
   `No datasource found ... name 'undefined'`. The *GPU utilization*, *Deployed models*, and
   *Request success rate* panels show *No data* until a model is served and called (this is a
   CPU-only cluster with no GPUs; the model panels populate after Exercises 4-7).
+* In the Settings menu you will see *Model as a Service* sections for managing subscriptions
+  and authorization policies.
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
+* On the *Observe & monitor -> Dashboard*, the *Cluster* tab renders live data. The *Usage* tab
+  should also render (no `No datasource found` errors) thanks to the `PersesGlobalDatasource`
+  created in Exercise 3b.
+* The Settings menu no longer contains MaaS items directly. Subscriptions and auth policies
+  are managed through the standalone MaaS UI. Deployed models appear in *Gen AI studio -> AI
+  asset endpoints* after Exercise 4-5.
+endif::[]
 
 With the MaaS backend active and the dashboard refreshed, let's deploy a model under governed access.
 
@@ -447,8 +494,16 @@ Exercise 2; confirm that step completed.
 
 === Verify
 
-* All three MaaS custom resources exist, and the model appears in the *Models as a Service* view in
-  the dashboard:
+* All three MaaS custom resources exist and are ready:
+ifeval::["{rhoai_version}" == "3.4"]
++
+The model also appears in the *Models as a Service* view in the {rhoai-short} Settings menu.
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
++
+The model appears in *Gen AI studio -> AI asset endpoints* (not in the Settings menu — MaaS
+subscriptions and auth policies are managed via the standalone MaaS UI in {rhoai-short} {rhoai_version}).
+endif::[]
 +
 [source,bash,role="execute",subs="attributes"]
 ----

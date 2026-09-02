@@ -1,0 +1,17 @@
+---
+# RHOAI 3.4 ExternalModel: provider config is inline (no separate ExternalProvider CR).
+# Points to the llm-katan simulator running in the same cluster.
+# The credentialRef secret must have the label:
+#   inference.networking.k8s.io/bbr-managed: "true"
+# so the BBR ext-proc injects it into upstream requests.
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: ExternalModel
+metadata:
+  name: sim-openai
+  namespace: llm-katan
+spec:
+  provider: openai
+  targetModel: test
+  endpoint: sim.llm-katan.svc.cluster.local:8443
+  credentialRef:
+    name: sim-openai-key

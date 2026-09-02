@@ -1,0 +1,92 @@
+---
+# Service annotation triggers the service-ca operator to issue a TLS cert for the simulator.
+apiVersion: v1
+kind: Service
+metadata:
+  name: sim
+  namespace: llm-katan
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: sim-serving-cert
+  labels:
+    app: llm-katan-simulator
+spec:
+  selector:
+    app: llm-katan-simulator
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sim
+  namespace: llm-katan
+  labels:
+    app: llm-katan-simulator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-katan-simulator
+  template:
+    metadata:
+      labels:
+        app: llm-katan-simulator
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: llm-katan
+          image: python:3.12-slim
+          env:
+            - name: HOME
+              value: /tmp
+            - name: PIP_CACHE_DIR
+              value: /tmp/.cache/pip
+          command:
+            - sh
+            - -c
+            - |
+              pip install --quiet --user llm-katan cryptography && \
+              export PATH="/tmp/.local/bin:$PATH" && \
+              llm-katan \
+                --model test \
+                --backend echo \
+                --port 8443 \
+                --providers openai,anthropic,vertexai,bedrock,azure_openai \
+                --tls-cert /tls/tls.crt \
+                --tls-key /tls/tls.key
+          ports:
+            - name: https
+              containerPort: 8443
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: serving-cert
+              mountPath: /tls
+              readOnly: true
+      volumes:
+        - name: serving-cert
+          secret:
+            secretName: sim-serving-cert

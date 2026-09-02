@@ -1,0 +1,10 @@
+---
+# Strategic-merge patch enabling MaaS on the existing DataScienceCluster (RHOAI 3.5+).
+# Apply with: oc patch datasciencecluster default-dsc --type merge \
+#   --patch-file manifests/05-maas/enable/dsc-maas-patch-35.yaml
+spec:
+  components:
+    aigateway:
+      managementState: Managed
+      modelsAsAService:
+        managementState: Managed

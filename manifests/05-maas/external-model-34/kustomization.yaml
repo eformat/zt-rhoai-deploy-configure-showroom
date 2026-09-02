@@ -1,0 +1,15 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# RHOAI 3.4 external model: deploys the llm-katan simulator pod and wires it up
+# with 3.4-format ExternalModel (inline provider config, no ExternalProvider CR).
+# Apply namespace first, then create the credential secret imperatively (not in git),
+# then apply this kustomization.
+resources:
+  - namespace.yaml
+  - simulator.yaml
+  - external-model.yaml
+  - maasmodelref.yaml
+  - maasauthpolicy.yaml
+  - maassubscription.yaml

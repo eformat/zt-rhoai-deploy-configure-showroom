@@ -5,6 +5,7 @@
 * xref:03-model-serving-platform.adoc[Module 3: Model-Serving Platform]
 * xref:04-vllm-serving.adoc[Module 4: Serving with vLLM]
 * xref:05-maas-governance.adoc[Module 5: MaaS Governance]
+* xref:05a-external-models.adoc[Module 5a: External Models]
 * xref:06-llmd-scaling.adoc[Module 6: Scaling llm-d]
 * xref:07-conclusion.adoc[Conclusion]
 * xref:08-cleanup.adoc[Cleanup]

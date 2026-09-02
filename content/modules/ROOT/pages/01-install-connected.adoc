@@ -21,10 +21,20 @@ By the end of this module you will be able to:
 
 . Apply the operator namespace, operator group, and subscription:
 +
+ifeval::["{rhoai_version}" == "3.4"]
 [source,bash,role="execute"]
 ----
 oc apply -k manifests/01-install/operator
 ----
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
+[source,bash,role="execute"]
+----
+oc apply -f manifests/01-install/operator/namespace.yaml
+oc apply -f manifests/01-install/operator/operatorgroup.yaml
+oc apply -f manifests/01-install/operator/subscription-35.yaml
+----
+endif::[]
 
 . Wait for the operator ClusterServiceVersion (CSV) to reach `Succeeded`:
 +
@@ -53,10 +63,19 @@ the dashboard and KServe (single-model serving).
 
 . Apply the DSCInitialization and DataScienceCluster:
 +
+ifeval::["{rhoai_version}" == "3.4"]
+[source,bash,role="execute"]
+----
+oc apply -f manifests/01-install/dsc/dscinitialization.yaml
+oc apply -f manifests/01-install/dsc/datasciencecluster-34.yaml
+----
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
 [source,bash,role="execute"]
 ----
 oc apply -k manifests/01-install/dsc
 ----
+endif::[]
 
 . Wait for the DSC to become `Ready`:
 +

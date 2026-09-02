@@ -1,0 +1,37 @@
+---
+# Antora playbook for the RHOAI 3.5 build.
+# Extends site.yml with version-specific attribute overrides — the ifeval blocks in the
+# AsciiDoc pages key on rhoai_version to show the correct content for each version.
+# Usage: npx antora site-35.yml  (local)  or  antoraPlaybook: site-35.yml  (deployer)
+
+site:
+  title: "RHOAI 3.5 Deploy & Configure Workshop"
+  url: https://eformat.github.io/zt-rhoai-deploy-configure-showroom
+  start_page: modules::index.adoc
+
+content:
+  sources:
+    - url: .
+      start_path: content
+
+ui:
+  bundle:
+    url: https://github.com/rhpds/rhdp_showroom_theme/releases/download/summit-2026/ui-bundle.zip
+    snapshot: true
+  supplemental_files: ./content/supplemental-ui
+
+asciidoc:
+  attributes:
+    showroom-collection-version: v1.5.2
+    # --- 3.5 overrides ---
+    rhoai_version: "3.5"
+    maas_api_namespace: "redhat-ai-gateway-infra"
+    dsc_maas_condition: "AIGatewayReady"
+    lab_name: "RHOAI 3.5 Deploy & Configure"
+
+antora:
+  extensions:
+    - require: ./content/lib/inject-buttons.js
+
+output:
+  dir: ./www-35

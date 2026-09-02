@@ -1,0 +1,9 @@
+---
+# Namespace for the llm-katan simulator and 3.4-format ExternalModel CRs.
+# The label allows the MaaS gateway to bind HTTPRoutes from this namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: llm-katan
+  labels:
+    maas.opendatahub.io/gateway-access: "true"

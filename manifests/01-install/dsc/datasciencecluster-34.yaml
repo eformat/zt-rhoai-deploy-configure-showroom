@@ -11,16 +11,15 @@ spec:
       managementState: Managed
     kserve:
       managementState: Managed
+      # MaaS (Models-as-a-Service) is enabled later in Module 5, after Red Hat
+      # Connectivity Link and the maas-default-gateway exist. Left Managed here it
+      # blocks the DSC (ModelsAsServiceReady=False, GatewayNotReady). Module 5's
+      # dsc-maas-patch flips this back to Managed once the prerequisites are in place.
+      modelsAsService:
+        managementState: Removed
       nim:
         managementState: Managed
       rawDeploymentServiceConfig: Headless
-    # MaaS in RHOAI 3.5+ is managed by the aigateway component, not kserve.modelsAsService.
-    # Left Removed here; Module 5's dsc-maas-patch-35 flips this to Managed once RHCL and
-    # the maas-default-gateway are in place (prevents AIGatewayReady=False at install).
-    aigateway:
-      managementState: Managed
-      modelsAsAService:
-        managementState: Removed
     mlflowoperator:
       managementState: Managed
     aipipelines:

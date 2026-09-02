@@ -1,0 +1,13 @@
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: sim-openai
+  namespace: llm-katan
+  annotations:
+    openshift.io/display-name: "LLM Katan Simulator (OpenAI)"
+    openshift.io/description: "Local echo simulator — responds in OpenAI chat format"
+spec:
+  modelRef:
+    kind: ExternalModel
+    name: sim-openai
