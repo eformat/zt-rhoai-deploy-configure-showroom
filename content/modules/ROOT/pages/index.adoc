@@ -48,7 +48,7 @@ and operate {rhoai} {rhoai_version}.
 [IMPORTANT]
 ====
 This guide is a companion to — not a replacement for — the official
-link:https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.4[{rhoai} {rhoai_version} documentation].
+link:https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/{rhoai_version}[{rhoai} {rhoai_version} documentation].
 It provides opinionated Kustomize manifests and status gates to accelerate a hands-on deployment.
 ====
 
