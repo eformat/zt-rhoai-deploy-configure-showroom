@@ -15,4 +15,10 @@ spec:
   endpoint: {{ include "llm-katan.fullname" $ }}.{{ $.Values.models.namespace }}.svc.cluster.local
   credentialRef:
     name: {{ $.Release.Name }}-{{ .name }}
+{{- if .config }}
+  config:
+    {{- range $k, $v := .config }}
+    {{ $k }}: {{ $v }}
+    {{- end }}
+{{- end }}
 {{- end }}

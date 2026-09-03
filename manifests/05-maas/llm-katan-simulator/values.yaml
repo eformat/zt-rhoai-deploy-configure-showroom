@@ -38,3 +38,9 @@ providers:
   - name: vertex-openai
     type: vertex-openai
     apiKey: llm-katan-vertexai-key
+    # Vertex AI path template requires project/location/endpoint placeholders.
+    # These are dummy values for the simulator — the echo backend ignores them.
+    config:
+      project: sim-project
+      location: us-central1
+      endpoint: sim-endpoint
