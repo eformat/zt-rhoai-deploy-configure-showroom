@@ -1,8 +1,19 @@
 ---
-# Tells the gateway controller to create the gateway Service as ClusterIP and have
-# the service-ca operator provision a TLS cert. The Secret name here MUST match the
-# certificateRefs in gateway.yaml.
-# The ConfigMap name is <gateway-name>-config (data-science-gateway-class convention).
+# Tells the openshift.io/gateway-controller/v1 to create the gateway Service as
+# LoadBalancer and have the service-ca operator provision a TLS cert.
+#
+# Why LoadBalancer instead of ClusterIP:
+#   On clusters WITHOUT a cloud LB provider (RHDP, bare-metal) the service stays <pending>
+#   externally, but a LoadBalancer service DOES get a ClusterIP — traffic via the Route
+#   still reaches the gateway through the ClusterIP. The advantage over ClusterIP: after
+#   deploying we manually patch status.loadBalancer.ingress with the Route hostname, which
+#   causes the gateway controller to set that hostname in gateway.status.addresses. The
+#   maas-api reads gateway.status.addresses to discover its external URL; without an
+#   external hostname there it returns 500 "Unable to determine external hostname" and the
+#   dashboard API keys page shows "maas-api is not available".
+#
+# The Secret name MUST match the certificateRefs in gateway.yaml.
+# The ConfigMap name follows <gateway-name>-config convention used by data-science-gateway-class.
 apiVersion: v1
 kind: ConfigMap
 metadata:
