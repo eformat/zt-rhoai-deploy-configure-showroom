@@ -246,10 +246,10 @@ controller *also* creates routing from the migrated inference `ExternalModel`. T
 the non-working TLS path; the gateway deterministically resolves the path conflict to
 the working `sim-<name>` route, so calls still succeed.
 
-This is fixed upstream in `models-as-a-service` PR #1417 ("stop legacy ExternalModel
-reconciler when inference CRD exists"), which tears down the `maas-*` children once the
-migrated inference route is ready. Until that fix ships in your build, the duplicate is
-cosmetic clutter. The low-level provider (`sim-vertex-openai`) is authored directly
+This is fixed upstream in `models-as-a-service` (link:https://github.com/opendatahub-io/models-as-a-service/pull/1417[PR #1417]),
+which tears down the `maas-*` children once the migrated inference route is ready. 
+Until that fix ships in your build, the duplicate is cosmetic clutter.
+The low-level provider (`sim-vertex-openai`) is authored directly
 against the inference CRDs, bypasses the legacy reconciler entirely, and already
 produces a single route.
 ====
