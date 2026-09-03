@@ -738,31 +738,68 @@ oc patch odhdashboardconfig odh-dashboard-config -n redhat-ods-applications --ty
   --patch-file manifests/05-maas/enable/dashboard-genai-patch.yaml
 ----
 
-. Wait for the Llama Stack operator to come up:
+. Wait for the backend to come up:
 +
+ifeval::["{rhoai_version}" == "3.4"]
 [source,bash,role="execute"]
 ----
 oc wait --for=condition=LlamaStackOperatorReady datasciencecluster/default-dsc --timeout=5m
 ----
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
+[source,bash,role="execute"]
+----
+oc wait --for=condition=OGXReady datasciencecluster/default-dsc --timeout=5m
+----
+endif::[]
 
 . In the {rhoai-short} dashboard, open *Gen AI studio -> Playground* (reload the dashboard if the
   nav entry has not appeared yet). Use the `rhoai-deploy` Project. If this is the first time the project uses the playground, click
   *Configure playground* to provision the per-project Llama Stack distribution, then select the
   `qwen25-05b` model and send a prompt.
 
-NOTE: You can update the token rate limit (100 tokens / 1 minute) in the Settings -> Subscriptions menu.
-    The playground routes through the MaaS gateway, so it's also subject to the 100-tokens/min subscription
+ifeval::["{rhoai_version}" == "3.4"]
+NOTE: You can update the token rate limit (100 tokens / 1 minute) in the *Settings -> Subscriptions* menu.
+  The playground routes through the MaaS gateway, so it's also subject to the 100-tokens/min subscription
   limit — even a short chat can trip a *HTTP 429*.
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
+NOTE: You can update the token rate limit (100 tokens / 1 minute) in the *Settings -> MaaS Governance ->
+  Subscriptions* menu. The playground routes through the MaaS gateway, so it's also subject to the
+  100-tokens/min subscription limit — even a short chat can trip a *HTTP 429*.
+endif::[]
 
 === Verify
 
-* The `DataScienceCluster` reports the operator ready:
+* The `DataScienceCluster` reports the backend ready:
 +
+ifeval::["{rhoai_version}" == "3.4"]
 [source,bash,role="execute"]
 ----
 oc get datasciencecluster default-dsc \
   -o jsonpath='{.status.conditions[?(@.type=="LlamaStackOperatorReady")].status}{"\n"}'
 ----
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
+[source,bash,role="execute"]
+----
+oc get datasciencecluster default-dsc \
+  -o jsonpath='{.status.conditions[?(@.type=="OGXReady")].status}{"\n"}'
+----
++
+[NOTE]
+====
+If `OGXReady` is `False` and the DSC message mentions an immutable `spec.selector`, the OGX
+deployment was created by a previous RHOAI version with extra labels. Fix it with a one-time
+delete — the operator recreates it correctly:
+
+[source,bash,role="execute"]
+----
+oc delete deployment ogx-k8s-operator-controller-manager -n redhat-ods-applications
+oc wait --for=condition=OGXReady datasciencecluster/default-dsc --timeout=3m
+----
+====
+endif::[]
 +
 This returns `True`.
 * The `qwen25-05b` model appears as a selectable endpoint in the playground and returns a response.
