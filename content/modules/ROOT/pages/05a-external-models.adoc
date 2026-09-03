@@ -107,7 +107,7 @@ The llm-katan Helm chart deploys a simulator pod and creates `ExternalProvider` 
 CRs for each of the five supported provider types. The ExternalModel controller then creates the
 HTTPRoutes and Services that wire them to `maas-default-gateway`.
 
-. Deploy the simulator with `helm template` piped into `kubectl apply --server-side`. The
+. Deploy the simulator with `helm template` piped into `oc apply --server-side`. The
   `--server-side` flag is required because the ExternalModel controller creates resources from the
   ExternalModel CRs (HTTPRoutes, Services) that would otherwise conflict with `helm install`
   field ownership:
@@ -115,7 +115,7 @@ HTTPRoutes and Services that wire them to `maas-default-gateway`.
 [source,bash,role="execute"]
 ----
 helm template sim manifests/05-maas/llm-katan-simulator --skip-crds \
-  | kubectl apply --server-side --force-conflicts -f -
+  | oc apply --server-side --force-conflicts -f -
 ----
 
 . Wait for the simulator to start. First boot installs llm-katan from PyPI (~60 s):
