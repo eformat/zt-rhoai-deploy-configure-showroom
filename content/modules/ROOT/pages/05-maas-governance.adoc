@@ -104,8 +104,8 @@ oc apply -f manifests/05-maas/connectivity-link/kuadrant.yaml
 oc wait --for=condition=Ready kuadrant/kuadrant -n kuadrant-system --timeout=5m
 ----
 
-ifeval::["{rhoai_version}" == "3.4"]
-. Let Authorino trust the cluster service CA — without this, the subscription check fails TLS verification and `+/maas-api/v1/models+` returns empty.
+. Let Authorino trust the cluster service CA — without this, Authorino cannot verify the
+  `maas-api` TLS certificate and every API key request returns a gateway 500 error.
 +
 WARNING: This step adds trusted CA material only. Do *not* enable Authorino's `listener` or `oidcServer` TLS — the Kuadrant `ext_authz` filter speaks plaintext gRPC on `:50051`, and enabling TLS there makes every authorized request return `500`.
 +
@@ -118,10 +118,6 @@ oc wait --for=jsonpath='{.data.service-ca\.crt}' configmap/authorino-service-ca 
 oc patch authorino authorino -n kuadrant-system --type=merge -p '{"spec":{"volumes":{"items":[{"name":"ca-trust","mountPath":"/etc/pki/tls/certs","configMaps":["authorino-trusted-ca-bundle","authorino-service-ca"]}]}}}'
 oc rollout status deploy/authorino -n kuadrant-system --timeout=5m
 ----
-endif::[]
-ifeval::["{rhoai_version}" == "3.5"]
-NOTE: {rhoai-short} {rhoai_version} pre-configures Authorino with the cluster service CA trust bundle — this step is no longer required.
-endif::[]
 
 . Create the MaaS gateway. The manifests carry a `$\{CLUSTER_DOMAIN}` placeholder, so they are
 built with `oc kustomize` and rendered through `envsubst` before applying — the gateway name,
