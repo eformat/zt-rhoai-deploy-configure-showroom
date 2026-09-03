@@ -176,9 +176,19 @@ for model in sim-openai sim-anthropic sim-azure-openai sim-bedrock sim-vertex-op
     -H "Authorization: Bearer ${SIM_KEY}" \
     -H "Content-Type: application/json" \
     -d "{\"model\":\"${model}\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}" \
-    | jq -r '.choices[0].message.content'
+    | jq -Rr 'fromjson? as $j | ($j.choices[0].message.content // $j.content[0].text // $j // .)'
 done
 ----
++
+[NOTE]
+====
+Each provider echoes back in its own API's native response schema. OpenAI-format
+providers (`sim-openai`, `sim-azure-openai`, `sim-bedrock`) return the text under
+`.choices[0].message.content`, while `sim-anthropic` uses the Anthropic Messages
+shape (`.content[0].text`). The `jq` filter above handles both, and reads the body
+raw first (`fromjson?`) so a non-JSON error body prints as text instead of failing
+the loop.
+====
 
 === Verify
 
