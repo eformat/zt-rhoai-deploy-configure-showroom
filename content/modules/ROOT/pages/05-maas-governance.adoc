@@ -175,6 +175,15 @@ oc wait --for=condition=Programmed gateway/maas-default-gateway \
 oc get route maas-gateway-route -n openshift-ingress
 ----
 
+ifeval::["{rhoai_version}" == "3.5"]
+NOTE: On ClusterIP clusters the `maas-api` discovers its external URL by reading the gateway
+status. Because the ClusterIP gateway status only contains an internal service address (not the
+external Route hostname), this discovery fails with "Unable to determine external hostname from
+Gateway status". The {rhoai-short} dashboard API keys page will show "maas-api is not available"
+until the `maas-ui` pod is restarted after MaaS is fully enabled in Exercise 3c. No action
+required here — this resolves automatically after the Exercise 3c restart.
+endif::[]
+
 TIP: The `maas-default-gateway` is now your single entry point for all governed model traffic. Every model published through MaaS shares this gateway, which enforces API-key authentication, subscription rate limits, and telemetry at the network layer — before a request reaches vLLM.
 
 With the gateway programmed, let's prepare the observability stack and then enable MaaS itself.
@@ -396,6 +405,17 @@ endif::[]
 oc rollout restart deploy/rhods-dashboard -n redhat-ods-applications
 oc rollout status deploy/rhods-dashboard -n redhat-ods-applications --timeout=3m
 ----
+ifeval::["{rhoai_version}" == "3.5"]
+. On ClusterIP clusters, restart the `maas-ui` pod so it re-discovers the gateway URL now
+  that the gateway and MaaS are both active. Without this restart the *API keys* page shows
+  "maas-api is not available":
++
+[source,bash,role="execute"]
+----
+oc rollout restart deploy/maas-ui -n redhat-ods-applications
+oc rollout status deploy/maas-ui -n redhat-ods-applications --timeout=2m
+----
+endif::[]
 
 === Verify
 
@@ -567,11 +587,13 @@ for attempt in $(seq 1 10); do
   echo "$MODEL_JSON" | jq -e '[.data[]? | select(.ready==true)][0]' >/dev/null 2>&1 && break
   echo "models catalog not ready yet (attempt ${attempt}); retrying..."; sleep 3
 done
-export MODEL_NAME=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.ready==true)][0].id')
-# The gateway path is /<namespace>/<model-name>. In RHOAI 3.5 the catalog's `url` field
-# only returns the gateway hostname; the path comes from `owned_by` (namespace/model-name).
-# In 3.4 the path was embedded in `url`. Both formats are handled below.
-export MODEL_PATH=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.ready==true)][0] | if (.url | split("/") | length) > 3 then (.url | gsub("^https?://[^/]+"; "")) else "/"+.owned_by end')
+# In RHOAI 3.5 the model id uses a long path format (publishers/ns/models/name);
+# the serving name for the chat payload and gateway path come from `owned_by` (ns/name).
+# In 3.4 the id was the short name and the path was embedded in `url`.
+export MODEL_NAME=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.ready==true)][0].owned_by | split("/")[-1]')
+# The gateway path is /owned_by (i.e. /namespace/model-name).
+# In 3.4 the path was embedded in the `url` field; in 3.5 `url` is only the base hostname.
+export MODEL_PATH=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.ready==true)][0] | if (.url | ltrimstr("https://") | ltrimstr("http://") | contains("/")) then (.url | gsub("^https?://[^/]+"; "")) else "/"+.owned_by end')
 echo "Model: $MODEL_NAME  ->  ${HOST}${MODEL_PATH}"
 curl -sSk "${HOST}${MODEL_PATH}/v1/chat/completions" \
   -H "Authorization: Bearer ${API_KEY}" \
