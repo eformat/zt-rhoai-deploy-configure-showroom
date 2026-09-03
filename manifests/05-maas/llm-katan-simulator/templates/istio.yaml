@@ -31,4 +31,25 @@ spec:
     tls:
       mode: SIMPLE
       insecureSkipVerify: true
+---
+# The ipp-legacy-migration controller creates inference ExternalProviders from the
+# high-level maas ExternalModels with endpoint = the maas EM's .spec.endpoint
+# (sim.<ns>.svc.cluster.local). The EP controller then owns the generated
+# ExternalName Service and sets its externalName to that endpoint. Without
+# skip-verify, Istio rejects the simulator's self-signed cert on that path.
+# This DR is applied by the chart (older) before the EP controller creates its
+# per-provider DRs (newer), so insecureSkipVerify:true wins the Istio merge.
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: {{ include "llm-katan.fullname" . }}-cluster-svc
+  namespace: {{ .Values.models.namespace }}
+  labels:
+    {{- include "llm-katan.labels" . | nindent 4 }}
+spec:
+  host: {{ include "llm-katan.fullname" . }}.{{ .Values.models.namespace }}.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: SIMPLE
+      insecureSkipVerify: true
 {{- end }}
