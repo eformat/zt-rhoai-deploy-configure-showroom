@@ -589,12 +589,12 @@ if ! echo "$MODEL_JSON" | jq -e '[.data[]? | select(.ready==true)][0]' >/dev/nul
   echo "  oc get authpolicy maas-gateway-auth -n openshift-ingress -o jsonpath='{.status.conditions[?(@.type==\"Enforced\")].status}'"
   echo "Raw catalog response: $MODEL_JSON"
 fi
-# In RHOAI 3.5 the model id uses a long path format (publishers/ns/models/name);
-# the serving name for the chat payload and gateway path come from `owned_by` (ns/name).
-# In 3.4 the id was the short name and the path was embedded in `url`.
-export MODEL_NAME=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.ready==true)][0].owned_by // "" | split("/")[-1]')
-# The gateway path is /<namespace>/<model-name>. In 3.4 the full path was in `url`;
-# in 3.5 `url` is only the base hostname (path length == 1, i.e. trailing "/" only).
+# MODEL_NAME: the name the model server (vLLM) uses — last segment of the catalog `id`
+# field (format: publishers/<ns>/models/<name> in 3.5; short name in 3.4).
+export MODEL_NAME=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.ready==true)][0].id | split("/")[-1]')
+# MODEL_PATH: the gateway path (/<namespace>/<resource-name>). In 3.4 the full path was
+# embedded in `url`; in 3.5 `url` is only the base hostname (trailing "/" only), so the
+# path comes from `owned_by` which holds <namespace>/<LLMInferenceService-or-ExternalModel>.
 export MODEL_PATH=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.ready==true)][0] | ((.url | gsub("^https?://[^/]+"; "")) | if length > 1 then . else null end) // ("/"+.owned_by)')
 echo "Model: $MODEL_NAME  ->  ${HOST}${MODEL_PATH}"
 curl -sSk "${HOST}${MODEL_PATH}/v1/chat/completions" \
