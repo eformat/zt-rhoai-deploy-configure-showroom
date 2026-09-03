@@ -144,6 +144,13 @@ export CLUSTER_DOMAIN=$(oc get ingress.config cluster -o jsonpath='{.spec.domain
 oc kustomize manifests/05-maas/gateway/clusterip | envsubst '${CLUSTER_DOMAIN}' | oc apply -f -
 oc wait --for=condition=Programmed gateway/maas-default-gateway \
   -n openshift-ingress --timeout=5m
+# On clusters without a LoadBalancer provider, the gateway Service is type LoadBalancer
+# but stays <pending> externally. Manually set the service status with the Route hostname
+# so the gateway reports the external URL and the maas-api can discover it.
+SVC=$(oc get svc -n openshift-ingress -l gateway.networking.k8s.io/gateway-name=maas-default-gateway \
+  -o jsonpath='{.items[0].metadata.name}')
+oc patch svc "${SVC}" -n openshift-ingress --subresource=status --type=merge \
+  -p "{\"status\":{\"loadBalancer\":{\"ingress\":[{\"hostname\":\"maas.${CLUSTER_DOMAIN}\"}]}}}"
 ----
 
 *LoadBalancer (cloud — AWS/ROSA/OSD, or on-prem with MetalLB).* Only use this if your cluster has a
@@ -171,14 +178,6 @@ oc wait --for=condition=Programmed gateway/maas-default-gateway \
 oc get route maas-gateway-route -n openshift-ingress
 ----
 
-ifeval::["{rhoai_version}" == "3.5"]
-NOTE: On ClusterIP clusters the `maas-api` discovers its external URL by reading the gateway
-status. Because the ClusterIP gateway status only contains an internal service address (not the
-external Route hostname), this discovery fails with "Unable to determine external hostname from
-Gateway status". The {rhoai-short} dashboard API keys page will show "maas-api is not available"
-until the `maas-ui` pod is restarted after MaaS is fully enabled in Exercise 3c. No action
-required here — this resolves automatically after the Exercise 3c restart.
-endif::[]
 
 TIP: The `maas-default-gateway` is now your single entry point for all governed model traffic. Every model published through MaaS shares this gateway, which enforces API-key authentication, subscription rate limits, and telemetry at the network layer — before a request reaches vLLM.
 

@@ -1,24 +1,12 @@
 ---
 # ClusterIP mode — for clusters WITHOUT a LoadBalancer provider (bare-metal,
-# on-prem, disconnected, RHDP workshop clusters). The Gateway's Service is created
-# as ClusterIP (via the gw-options ConfigMap) and exposed externally by the
-# OpenShift Route in route.yaml (re-encrypt). This is the same pattern the built-in
-# `data-science-gateway` uses on these clusters, and the documented MaaS
-# INGRESS_MODE=clusterip path.
+# on-prem, disconnected, RHDP workshop clusters).
 #
-# The listener terminates TLS with the service-ca certificate (maas-gw-service-tls),
-# which is the *internal* re-encrypt leg; client-facing TLS is terminated by the
-# OpenShift Router using the cluster wildcard cert. There is no listener hostname —
-# adding one breaks the Envoy filter chain selection in ClusterIP+Route mode (the
-# gateway reverts to filter_chain_not_found and returns 503). Hostname routing is
-# handled by the Route. The maas-api discovers the external URL via the Route hostname.
-apiVersion: gateway.networking.k8s.io/v1
-kind: GatewayClass
-metadata:
-  name: openshift-default
-spec:
-  controllerName: "openshift.io/gateway-controller/v1"
----
+# Uses data-science-gateway-class (the same class as RHOAI's built-in data-science-gateway)
+# instead of openshift-default. This class properly exposes the external Route hostname
+# in status so the maas-api can discover the gateway URL.
+#
+# The Route in route.yaml exposes the gateway externally with Edge TLS termination.
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -27,7 +15,6 @@ metadata:
   namespace: openshift-ingress
   annotations:
     opendatahub.io/managed: "false"
-    # Lets the ODH/Authorino stack bootstrap gateway TLS wiring automatically.
     security.opendatahub.io/authorino-tls-bootstrap: "true"
   labels:
     app.kubernetes.io/name: maas
@@ -36,12 +23,12 @@ metadata:
     kuadrant.io/gateway: "true"
     opendatahub.io/managed: "false"
 spec:
-  gatewayClassName: openshift-default
+  gatewayClassName: data-science-gateway-class
   infrastructure:
     parametersRef:
       group: ""
       kind: ConfigMap
-      name: gw-options
+      name: maas-default-gateway-config
   listeners:
     - name: https
       port: 443
@@ -52,8 +39,6 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          # service-ca-operator populates this Secret automatically (see the
-          # gw-options ConfigMap). Must match the name there.
           - group: ""
             kind: Secret
             name: maas-gw-service-tls
