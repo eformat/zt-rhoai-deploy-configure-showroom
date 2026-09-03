@@ -69,6 +69,29 @@ NOTE: IPP (Inference Payload Processor) is deployed automatically into `openshif
 {rhoai-short} {rhoai_version}. It translates OpenAI chat format to each provider's native wire format
 before forwarding to the upstream endpoint.
 
+[NOTE]
+.Two ways to author an external model
+====
+There are two CRD layers you can author against:
+
+* *High-level* `maas.opendatahub.io/ExternalModel` — a compact CR (`provider`, `endpoint`,
+  `targetModel`, `credentialRef`). The MaaS controller expands it into the low-level
+  `inference.opendatahub.io` `ExternalProvider` + `ExternalModel`, HTTPRoutes, Services and
+  routing. This is what four of the five simulator providers use.
+* *Low-level* `inference.opendatahub.io` `ExternalProvider` + `ExternalModel` — authored directly.
+  The `ExternalProvider` has a first-class `config` object for provider-specific settings, and the
+  `ExternalModel` carries the request `path`, `apiFormat`, and `targetModel` per provider ref.
+
+*Vertex AI needs the low-level form.* Its request path is a template —
+`/v1/projects/{project}/locations/{location}/endpoints/{endpoint}/chat/completions` — whose
+placeholders resolve from the provider `config`. The high-level `ExternalModel` CRD has no `config`
+field, so the placeholders would stay unresolved and the model would fail to reconcile. The chart
+detects a `config:` block on a provider and emits the low-level pair for it instead
+(`manifests/05-maas/llm-katan-simulator/templates/external-models.yaml`). `MaaSModelRef` resolves
+by `kind: ExternalModel` either way, so governance (subscription, auth policy, rate limits) is
+identical for both layers.
+====
+
 endif::[]
 
 ifeval::["{rhoai_version}" == "3.4"]
@@ -176,7 +199,7 @@ for model in sim-openai sim-anthropic sim-azure-openai sim-bedrock sim-vertex-op
     -H "Authorization: Bearer ${SIM_KEY}" \
     -H "Content-Type: application/json" \
     -d "{\"model\":\"${model}\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}" \
-    | jq -Rr 'fromjson? as $j | ($j.choices[0].message.content // $j.content[0].text // $j // .)'
+    | jq -Rr '(fromjson? | .choices[0].message.content // .content[0].text) // .'
 done
 ----
 +
@@ -195,6 +218,41 @@ the loop.
 * Each provider returns a `200` response with an echo of the input message.
 * All five simulator models appear in *Gen AI studio -> AI asset endpoints* in the {rhoai-short}
   dashboard.
+
+=== Known caveats
+
+[NOTE]
+.Intermittent HTTP 500 on a loaded cluster
+====
+On a heavily loaded single-node cluster you may see an occasional `500` (or a non-JSON
+error body) from an otherwise-healthy provider. This is a known upstream Envoy
+race in the WASM remote-code fetch used by the gateway
+(link:https://github.com/envoyproxy/envoy/pull/46674[envoyproxy/envoy#46674]) — the
+gateway log shows `Wasm remote code fetch is unstable and may cause a crash`. It is
+*not* a simulator or configuration problem. Re-run the call; it succeeds on retry. The
+verify loop above reads the body raw first so a transient error prints as text rather
+than aborting the loop.
+====
+
+[NOTE]
+.Duplicate HTTPRoutes for the high-level providers (known platform issue)
+====
+On this {rhoai-short} {rhoai_version} build, `oc get httproute -n llm-katan` shows two
+routes per high-level provider — `maas-sim-<name>` and `sim-<name>` — both matching
+`/llm-katan/sim-<name>` on the same gateway. On a 3.4->3.5 migration the maas
+`ExternalModel` controller still creates its own legacy `maas-*` routing while the IPP
+controller *also* creates routing from the migrated inference `ExternalModel`. The
+`maas-*` copy routes to the raw service host (no skip-verify DestinationRule), so it is
+the non-working TLS path; the gateway deterministically resolves the path conflict to
+the working `sim-<name>` route, so calls still succeed.
+
+This is fixed upstream in `models-as-a-service` PR #1417 ("stop legacy ExternalModel
+reconciler when inference CRD exists"), which tears down the `maas-*` children once the
+migrated inference route is ready. Until that fix ships in your build, the duplicate is
+cosmetic clutter. The low-level provider (`sim-vertex-openai`) is authored directly
+against the inference CRDs, bypasses the legacy reconciler entirely, and already
+produces a single route.
+====
 
 endif::[]
 

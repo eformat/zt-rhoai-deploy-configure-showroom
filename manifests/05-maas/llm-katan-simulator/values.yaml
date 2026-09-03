@@ -41,3 +41,14 @@ providers:
   - name: vertex-openai
     type: vertex-openai
     apiKey: llm-katan-vertexai-key
+    # vertex needs provider-specific config (project/location/endpoint) that the
+    # high-level maas ExternalModel CRD cannot carry. Providers with a `config:`
+    # block are rendered as low-level inference.opendatahub.io ExternalProvider +
+    # ExternalModel, where config is a first-class field and the path placeholders
+    # resolve from it. See external-models.yaml.
+    apiFormat: openai-chat
+    path: /v1/projects/{project}/locations/{location}/endpoints/{endpoint}/chat/completions
+    config:
+      project: sim-project
+      location: us-central1
+      endpoint: sim-endpoint

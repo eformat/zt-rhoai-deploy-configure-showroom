@@ -1,5 +1,56 @@
 {{- range .Values.providers }}
 ---
+{{- if .config }}
+# Providers with a `config:` block (e.g. vertex-openai) carry provider-specific
+# settings — project/location/endpoint — that the high-level
+# maas.opendatahub.io/ExternalModel CRD has no field for. Author the low-level
+# inference.opendatahub.io ExternalProvider + ExternalModel directly instead:
+# `config` is a first-class field there, and the path placeholders resolve from it.
+# MaaSModelRef (kind: ExternalModel) resolves to this inference ExternalModel, so
+# governance (subscription / auth policy / rate limits) still applies unchanged.
+apiVersion: inference.opendatahub.io/v1alpha1
+kind: ExternalProvider
+metadata:
+  name: {{ $.Release.Name }}-{{ .name }}
+  namespace: {{ $.Values.models.namespace }}
+  labels:
+    {{- include "llm-katan.labels" $ | nindent 4 }}
+spec:
+  provider: {{ .type }}
+  # Point at the mesh-internal sim.simulator host (ServiceEntry + skip-verify
+  # DestinationRule authored in istio.yaml), NOT the raw cluster service. The
+  # ExternalProvider controller sets the generated ExternalName Service to this
+  # endpoint; sim.simulator carries the insecureSkipVerify DestinationRule that
+  # makes TLS origination to the self-signed serving cert succeed. Using the raw
+  # svc host instead lands on a SIMPLE (no-skip-verify) DR → CERTIFICATE_VERIFY_FAILED.
+  endpoint: {{ include "llm-katan.fullname" $ }}.simulator
+  auth:
+    type: apikey
+    secretRef:
+      name: {{ $.Release.Name }}-{{ .name }}
+  config:
+    {{- toYaml .config | nindent 4 }}
+---
+apiVersion: inference.opendatahub.io/v1alpha1
+kind: ExternalModel
+metadata:
+  name: {{ $.Release.Name }}-{{ .name }}
+  namespace: {{ $.Values.models.namespace }}
+  labels:
+    {{- include "llm-katan.labels" $ | nindent 4 }}
+spec:
+  modelName: {{ $.Release.Name }}-{{ .name }}
+  externalProviderRefs:
+    - ref:
+        name: {{ $.Release.Name }}-{{ .name }}
+      targetModel: {{ $.Release.Name }}-{{ .name }}
+      apiFormat: {{ .apiFormat | default "openai-chat" }}
+      path: {{ .path }}
+      weight: 1
+{{- else }}
+# High-level path: the maas ExternalModel controller generates the downstream
+# inference ExternalProvider + ExternalModel, HTTPRoutes, Services, ServiceEntries
+# and DestinationRules for us.
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: ExternalModel
 metadata:
@@ -15,4 +66,5 @@ spec:
   endpoint: {{ include "llm-katan.fullname" $ }}.{{ $.Values.models.namespace }}.svc.cluster.local
   credentialRef:
     name: {{ $.Release.Name }}-{{ .name }}
+{{- end }}
 {{- end }}
