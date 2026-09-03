@@ -1,10 +1,10 @@
 simulator:
   image: python:3.12-slim
   replicas: 1
-  port: 8080
+  port: 8443
   backend: echo
   model: test
-  tls: false
+  tls: true
   validateKeys: false
   providers: openai,anthropic,vertexai,bedrock,azure_openai
 
@@ -21,6 +21,9 @@ subscription:
   tokenRateWindow: 1m
   groups:
     - system:authenticated
+  tokenMetadata:
+    costCenter: na
+    organizationId: na
 
 providers:
   - name: openai
@@ -38,9 +41,3 @@ providers:
   - name: vertex-openai
     type: vertex-openai
     apiKey: llm-katan-vertexai-key
-    # Vertex AI path template requires project/location/endpoint placeholders.
-    # These are dummy values for the simulator — the echo backend ignores them.
-    config:
-      project: sim-project
-      location: us-central1
-      endpoint: sim-endpoint

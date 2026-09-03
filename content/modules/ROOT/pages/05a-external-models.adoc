@@ -299,7 +299,7 @@ ifeval::["{rhoai_version}" == "3.5"]
 oc delete externalmodel -n llm-katan -l app.kubernetes.io/instance=sim
 # Remove the remaining chart resources.
 helm template sim manifests/05-maas/llm-katan-simulator --skip-crds \
-  | kubectl delete --ignore-not-found -f -
+  | oc delete --ignore-not-found -f -
 oc delete namespace llm-katan
 ----
 endif::[]

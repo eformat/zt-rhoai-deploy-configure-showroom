@@ -46,11 +46,11 @@ oc rollout status deployment/payload-processing -n ${GATEWAY_NAMESPACE} --timeou
 
 ## Step 2: Deploy the llm-katan Simulator
 
-The chart must be deployed using `helm template` piped into `kubectl apply --server-side --force-conflicts` because the MaaS ExternalModel controller creates resources (HTTPRoutes, Services, ServiceEntries) from ExternalModel CRs, which causes field-ownership conflicts with `helm install`:
+The chart must be deployed using `helm template` piped into `oc apply --server-side --force-conflicts` because the MaaS ExternalModel controller creates resources (HTTPRoutes, Services, ServiceEntries) from ExternalModel CRs, which causes field-ownership conflicts with `helm install`:
 
 ```bash
 helm template sim ./deploy/llm-katan-simulator --skip-crds \
-  | kubectl apply --server-side --force-conflicts -f -
+  | oc apply --server-side --force-conflicts -f -
 ```
 
 This creates a `llm-katan` namespace containing:
@@ -172,17 +172,17 @@ Override defaults via `--set` or a values file:
 helm template sim ./deploy/llm-katan-simulator \
   --set gateway.name=my-gateway \
   --set gateway.namespace=my-ns \
-  --skip-crds | kubectl apply --server-side --force-conflicts -f -
+  --skip-crds | oc apply --server-side --force-conflicts -f -
 
 # Different model namespace
 helm template sim ./deploy/llm-katan-simulator \
   --set models.namespace=my-models \
-  --skip-crds | kubectl apply --server-side --force-conflicts -f -
+  --skip-crds | oc apply --server-side --force-conflicts -f -
 
 # Enable key validation (rejects requests with wrong API keys at the simulator)
 helm template sim ./deploy/llm-katan-simulator \
   --set simulator.validateKeys=true \
-  --skip-crds | kubectl apply --server-side --force-conflicts -f -
+  --skip-crds | oc apply --server-side --force-conflicts -f -
 ```
 
 See `values.yaml` for all options.
@@ -196,7 +196,7 @@ oc delete externalmodel -n llm-katan -l app.kubernetes.io/instance=sim
 
 # Then remove the remaining chart resources
 helm template sim ./deploy/llm-katan-simulator --skip-crds \
-  | kubectl delete --ignore-not-found -f -
+  | oc delete --ignore-not-found -f -
 
 # Remove the namespace
 oc delete namespace llm-katan

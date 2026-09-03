@@ -12,6 +12,11 @@ spec:
       - name: {{ . }}
       {{- end }}
     users: []
+  {{- if .Values.subscription.tokenMetadata }}
+  tokenMetadata:
+    costCenter: {{ .Values.subscription.tokenMetadata.costCenter }}
+    organizationId: {{ .Values.subscription.tokenMetadata.organizationId }}
+  {{- end }}
   modelRefs:
     {{- range .Values.providers }}
     - name: {{ $.Release.Name }}-{{ .name }}
