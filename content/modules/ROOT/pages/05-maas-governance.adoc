@@ -726,10 +726,10 @@ model. The `qwen25-05b` model was already published as an AI asset endpoint back
 `opendatahub.io/genai-asset` label on its `InferenceService`), so once the playground is enabled the
 model is selectable there without any further changes.
 
-. Enable the Llama Stack backend and reveal the *Gen AI studio* in the dashboard. The first patch
-  flips `llamastackoperator` to `Managed` in the `DataScienceCluster`; the second adds the
-  `genAiStudio` nav flag to the dashboard config (`modelAsService` was already set in Exercise 3):
+. Enable the Gen AI studio backend in the `DataScienceCluster` and reveal the nav entry in the
+  dashboard (`genAiStudio` was already set in Exercise 3c for {rhoai_version}):
 +
+ifeval::["{rhoai_version}" == "3.4"]
 [source,bash,role="execute"]
 ----
 oc patch datasciencecluster default-dsc --type merge \
@@ -737,6 +737,14 @@ oc patch datasciencecluster default-dsc --type merge \
 oc patch odhdashboardconfig odh-dashboard-config -n redhat-ods-applications --type merge \
   --patch-file manifests/05-maas/enable/dashboard-genai-patch.yaml
 ----
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
+[source,bash,role="execute"]
+----
+oc patch datasciencecluster default-dsc --type merge \
+  --patch-file manifests/05-maas/enable/dsc-genai-patch-35.yaml
+----
+endif::[]
 
 . Wait for the backend to come up:
 +
