@@ -525,6 +525,10 @@ oc get maassubscription,maasauthpolicy -n models-as-a-service
 ----
 oc get telemetry,telemetrypolicy -n openshift-ingress
 ----
+* In the {rhoai-short} dashboard, open *Observe & monitor -> Dashboard*. The tabs
+  *Cluster*, *Models*, *LLM Traffic*, *LLM Utilization*, *Usage*, and *LLM Performance*
+  should all now be present. The *Usage* tab will populate with token consumption data after
+  you generate traffic in Exercises 6 and 7.
 
 Governance is in place. Let's mint an API key and make your first governed inference request.
 
