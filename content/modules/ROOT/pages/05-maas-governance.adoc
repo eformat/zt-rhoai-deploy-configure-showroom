@@ -375,14 +375,18 @@ ifeval::["{rhoai_version}" == "3.5"]
 ----
 oc patch datasciencecluster default-dsc --type merge \
   --patch-file manifests/05-maas/enable/dsc-maas-patch-35.yaml
+oc patch datasciencecluster default-dsc --type merge \
+  --patch-file manifests/05-maas/enable/dsc-genai-patch.yaml
 oc patch odhdashboardconfig odh-dashboard-config -n redhat-ods-applications --type merge \
   --patch-file manifests/05-maas/enable/dashboard-maas-patch.yaml
+oc patch odhdashboardconfig odh-dashboard-config -n redhat-ods-applications --type merge \
+  --patch-file manifests/05-maas/enable/dashboard-genai-patch.yaml
 ----
 +
-This sets `spec.components.aigateway.modelsAsAService.managementState: Managed` in the
-`DataScienceCluster` (the {rhoai-short} {rhoai_version} path — `kserve.modelsAsService` is
-replaced by the dedicated `aigateway` component), and turns on the `modelAsService` and
-`observabilityDashboard` dashboard feature flags in `OdhDashboardConfig`.
+This enables `aigateway.modelsAsAService` in the DSC and turns on `modelAsService`,
+`observabilityDashboard`, and `genAiStudio` dashboard feature flags. The Gen AI Studio
+features (including *AI asset endpoints*) are part of the core MaaS workflow in
+{rhoai-short} {rhoai_version}.
 endif::[]
 
 . Restart the dashboard to pick up the new feature flags. The dashboard pods started before MaaS was enabled, so without this the *Models as a Service* view and the *Observe & monitor* nav do not appear:

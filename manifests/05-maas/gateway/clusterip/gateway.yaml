@@ -8,8 +8,10 @@
 #
 # The listener terminates TLS with the service-ca certificate (maas-gw-service-tls),
 # which is the *internal* re-encrypt leg; client-facing TLS is terminated by the
-# OpenShift Router using the cluster wildcard cert. There is no listener hostname —
-# hostname routing is handled by the Route.
+# OpenShift Router using the cluster wildcard cert.
+# The listener hostname is set so the maas-api can discover the external gateway URL
+# from spec.listeners[].hostname — without it the maas-api returns 500 "Unable to
+# determine external hostname from Gateway status" on ClusterIP clusters.
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
@@ -42,6 +44,7 @@ spec:
       name: gw-options
   listeners:
     - name: https
+      hostname: "maas.${CLUSTER_DOMAIN}"
       port: 443
       protocol: HTTPS
       allowedRoutes:
