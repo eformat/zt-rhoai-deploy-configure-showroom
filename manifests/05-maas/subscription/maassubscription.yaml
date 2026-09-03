@@ -31,7 +31,7 @@ spec:
     costCenter: na
     organizationId: na
   modelRefs:
-    - name: qwen25-05b
+    - name: qwen25-05b-maas
       namespace: rhoai-deploy
       tokenRateLimits:
         - limit: 100

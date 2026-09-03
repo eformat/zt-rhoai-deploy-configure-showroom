@@ -17,5 +17,5 @@ spec:
     groups:
       - name: system:authenticated:oauth
   modelRefs:
-    - name: qwen25-05b
+    - name: qwen25-05b-maas
       namespace: rhoai-deploy

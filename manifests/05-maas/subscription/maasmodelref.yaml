@@ -7,7 +7,7 @@
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSModelRef
 metadata:
-  name: qwen25-05b
+  name: qwen25-05b-maas
   namespace: rhoai-deploy
 spec:
   modelRef:
