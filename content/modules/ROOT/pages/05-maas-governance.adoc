@@ -134,6 +134,14 @@ There are two modes; pick the one that matches your cluster:
 LoadBalancer provider, so the gateway `Service` is created as `ClusterIP` and exposed by an OpenShift
 `Route` that re-encrypts to it (the same pattern the built-in `data-science-gateway` uses):
 
+[IMPORTANT]
+====
+Using a `ClusterIP` service type with the Gateway API is not currently a supported configuration.
+A support exception is required — see
+link:https://redhat.atlassian.net/browse/RFE-9734[RFE-9734] for status and to track when this
+becomes fully supported.
+====
+
 [source,bash,role="execute"]
 ----
 export CLUSTER_DOMAIN=$(oc get ingress.config cluster -o jsonpath='{.spec.domain}')
