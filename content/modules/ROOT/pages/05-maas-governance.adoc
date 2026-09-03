@@ -776,8 +776,7 @@ endif::[]
 ifeval::["{rhoai_version}" == "3.5"]
 OGX
 endif::[]
-distribution, then select the
-  `qwen25-05b` model and send a prompt.
+distribution, then select the `qwen25-05b` model and send a prompt.
 
 ifeval::["{rhoai_version}" == "3.4"]
 NOTE: You can update the token rate limit (100 tokens / 1 minute) in the *Settings -> Subscriptions* menu.
