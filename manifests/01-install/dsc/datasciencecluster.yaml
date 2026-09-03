@@ -34,6 +34,9 @@ spec:
       managementState: Managed
     datasciencepipelines:
       managementState: Managed
+    # Gen AI studio (Module 5, Exercise 9) — enabled later via dsc-genai-patch-35.yaml
+    ogx:
+      managementState: Removed
     # Not needed for the workshop
     feastoperator:
       managementState: Removed

@@ -720,7 +720,13 @@ oc get telemetry,telemetrypolicy -n openshift-ingress
 
 == Exercise 9: Test in the Gen AI playground
 
-The Gen AI playground is a separate {rhoai-short} capability powered by the *Llama Stack* operator.
+The Gen AI playground is a separate {rhoai-short} capability powered by the
+ifeval::["{rhoai_version}" == "3.4"]
+*Llama Stack* operator.
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
+*OGX* operator.
+endif::[]
 The earlier modules do not enable it, so this exercise turns it on and then chats with the served
 model. The `qwen25-05b` model was already published as an AI asset endpoint back in Module 4 (the
 `opendatahub.io/genai-asset` label on its `InferenceService`), so once the playground is enabled the
@@ -763,7 +769,14 @@ endif::[]
 
 . In the {rhoai-short} dashboard, open *Gen AI studio -> Playground* (reload the dashboard if the
   nav entry has not appeared yet). Use the `rhoai-deploy` Project. If this is the first time the project uses the playground, click
-  *Configure playground* to provision the per-project Llama Stack distribution, then select the
+  *Configure playground* to provision the per-project
+ifeval::["{rhoai_version}" == "3.4"]
+Llama Stack
+endif::[]
+ifeval::["{rhoai_version}" == "3.5"]
+OGX
+endif::[]
+distribution, then select the
   `qwen25-05b` model and send a prompt.
 
 ifeval::["{rhoai_version}" == "3.4"]
