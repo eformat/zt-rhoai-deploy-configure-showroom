@@ -568,10 +568,10 @@ for attempt in $(seq 1 10); do
   echo "models catalog not ready yet (attempt ${attempt}); retrying..."; sleep 3
 done
 export MODEL_NAME=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.ready==true)][0].id')
-# The catalog also returns each model's gateway path (/<namespace>/<LLMInferenceService>). Chat
-# requests go to that path, NOT the bare /v1/chat/completions — the gateway routes by prefix and
-# a bare path 404s.
-export MODEL_PATH=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.ready==true)][0].url' | sed -E 's#^https?://[^/]+##')
+# The gateway path is /<namespace>/<model-name>. In RHOAI 3.5 the catalog's `url` field
+# only returns the gateway hostname; the path comes from `owned_by` (namespace/model-name).
+# In 3.4 the path was embedded in `url`. Both formats are handled below.
+export MODEL_PATH=$(echo "$MODEL_JSON" | jq -re '[.data[] | select(.ready==true)][0] | if (.url | split("/") | length) > 3 then (.url | gsub("^https?://[^/]+"; "")) else "/"+.owned_by end')
 echo "Model: $MODEL_NAME  ->  ${HOST}${MODEL_PATH}"
 curl -sSk "${HOST}${MODEL_PATH}/v1/chat/completions" \
   -H "Authorization: Bearer ${API_KEY}" \
