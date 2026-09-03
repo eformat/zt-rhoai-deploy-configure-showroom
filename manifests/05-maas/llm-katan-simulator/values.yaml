@@ -1,10 +1,10 @@
 simulator:
   image: python:3.12-slim
   replicas: 1
-  port: 8443
+  port: 8080
   backend: echo
   model: test
-  tls: true
+  tls: false
   validateKeys: false
   providers: openai,anthropic,vertexai,bedrock,azure_openai
 

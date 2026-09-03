@@ -1,4 +1,3 @@
-{{- if .Values.simulator.tls }}
 {{- range .Values.providers }}
 ---
 apiVersion: v1
@@ -10,9 +9,8 @@ metadata:
     {{- include "llm-katan.labels" $ | nindent 4 }}
 spec:
   type: ExternalName
-  externalName: {{ include "llm-katan.fullname" $ }}.simulator
+  externalName: {{ include "llm-katan.fullname" $ }}.{{ $.Values.models.namespace }}.svc.cluster.local
   ports:
-  - port: 443
+  - port: {{ $.Values.simulator.port }}
     protocol: TCP
-{{- end }}
 {{- end }}
