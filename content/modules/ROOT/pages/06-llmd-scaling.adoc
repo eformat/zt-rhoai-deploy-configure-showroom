@@ -305,7 +305,12 @@ python3 manifests/06-llmd/load/load-test.py -c 32 -d 300 > /tmp/llmd-load.log 2>
 [source,bash,role="execute",subs="attributes"]
 ----
 oc get hpa keda-hpa-qwen25-05b-llmd-keda -n {project_name} -w
-# or watch the Deployment's replica count directly:
+----
++
+or watch the Deployment's replica count directly:
++
+[source,bash,role="execute",subs="attributes"]
+----
 oc get deploy qwen25-05b-llmd-kserve -n {project_name} -w
 ----
 
