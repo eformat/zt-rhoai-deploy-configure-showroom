@@ -1,0 +1,32 @@
+{{- if .Values.simulator.tls }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "llm-katan.fullname" . }}
+  namespace: {{ .Values.models.namespace }}
+  labels:
+    # Required for the RHOAI data-science OTel collector Target Allocator to
+    # discover this ServiceMonitor and feed llm_katan_* metrics into the
+    # data-science Prometheus (and thus the Perses dashboards).
+    monitoring.opendatahub.io/scrape: "true"
+    {{- include "llm-katan.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      # Must match the Service's metadata labels (from llm-katan.labels),
+      # not the pod selector labels (selectorLabels which use `app:` short key).
+      app.kubernetes.io/name: llm-katan-simulator
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.models.namespace }}
+  endpoints:
+    - port: https
+      scheme: https
+      path: /metrics
+      interval: 30s
+      tlsConfig:
+        # Simulator uses a self-signed cert; skip verification so the
+        # data-science MonitoringStack can scrape /metrics on port 443.
+        insecureSkipVerify: true
+{{- end }}

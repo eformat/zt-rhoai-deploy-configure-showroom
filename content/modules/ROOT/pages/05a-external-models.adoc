@@ -219,6 +219,44 @@ the loop.
 * All five simulator models appear in *Gen AI studio -> AI asset endpoints* in the {rhoai-short}
   dashboard.
 
+== Exercise 3: View simulator metrics in the Observability dashboard
+
+The llm-katan simulator exposes native Prometheus metrics at `/metrics` on the same
+port as its API. The chart deploys a `ServiceMonitor` labelled
+`monitoring.opendatahub.io/scrape: "true"`, which is picked up by the RHOAI
+OpenTelemetry data-science collector Target Allocator. Metrics flow:
+
+[source]
+----
+llm-katan pod /metrics  →  OTel collector (data-science)
+  →  data-science Prometheus  →  data-science-prometheus-datasource (Perses)
+----
+
+. Apply the External Models dashboard manifest (deployed alongside the chart but
+  in a different namespace):
++
+[source,bash,role="execute"]
+----
+oc apply -f manifests/05-maas/perses-dashboard-external-models.yaml
+----
+
+. In the {rhoai-short} dashboard go to *Observe & monitor → Dashboard*.
+  A new *External Models* tab appears alongside Cluster, Models, LLM Traffic, etc.
+
+. Fire the Exercise 2 curl loop to generate some traffic, then refresh the
+  dashboard. You should see:
+** *Lifetime requests* — total requests since the simulator started (persisted across pod restarts)
+** *Requests/s by provider* — per-provider breakdown (`openai`, `anthropic`, `azure_openai`, `vertexai (openai-compat)`, `bedrock`)
+** *Token throughput* — prompt and completion token rates
+** *Avg response time* — rolling average over the last 1000 requests
+
+[NOTE]
+====
+The token counters in this dashboard reset on pod restart. For durable token accounting
+(which survives restarts and tracks by API key) use the *Usage* tab, which draws from
+the MaaS gateway's Limitador subscription counters.
+====
+
 === Known caveats
 
 [NOTE]
@@ -232,6 +270,18 @@ gateway log shows `Wasm remote code fetch is unstable and may cause a crash`. It
 *not* a simulator or configuration problem. Re-run the call; it succeeds on retry. The
 verify loop above reads the body raw first so a transient error prints as text rather
 than aborting the loop.
+====
+
+[NOTE]
+.External models appear in Usage only — not in LLM Traffic / LLM Performance / Models
+====
+In the Observability dashboard (*Observe & monitor → Dashboard*), the sim models appear
+under the *Usage* tab (MaaS subscription token counters, tracked at the gateway layer) but
+are absent from the *LLM Traffic*, *LLM Performance*, and *Models* tabs. Those tabs query
+KServe and vLLM pod metrics (`kserve_vllm:*`, `inference_model_request_*`) which only exist
+for locally-served `LLMInferenceService` workloads with a vLLM sidecar. The sim models are
+an external echo server with no vLLM — so no pod metrics are scraped. This is expected
+behaviour: *Usage* is the right place to observe external model consumption.
 ====
 
 [NOTE]

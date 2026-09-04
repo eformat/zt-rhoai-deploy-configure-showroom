@@ -1,0 +1,244 @@
+apiVersion: perses.dev/v1alpha2
+kind: PersesDashboard
+metadata:
+  name: dashboard-5-external-models-admin
+  namespace: redhat-ods-monitoring
+  labels:
+    app.kubernetes.io/component: perses
+    app.kubernetes.io/part-of: models-as-a-service
+spec:
+  config:
+    display:
+      name: External Models
+      description: Native metrics from the llm-katan simulator (request rate, token throughput, latency, per-provider breakdown)
+    duration: 30m
+    variables:
+      - kind: ListVariable
+        spec:
+          name: provider
+          display:
+            name: Provider
+          allowAllValue: true
+          allowMultiple: true
+          defaultValue: $__all
+          plugin:
+            kind: PrometheusLabelValuesVariable
+            spec:
+              datasource:
+                kind: PrometheusDatasource
+                name: data-science-prometheus-datasource
+              labelName: provider
+              matchers:
+                - llm_katan_lifetime_provider_requests_total{k8s_namespace_name="llm-katan"}
+    layouts:
+      - kind: Grid
+        spec:
+          display:
+            title: Overview
+            collapse:
+              open: true
+          items:
+            - content:
+                $ref: '#/spec/panels/lifetimeRequests'
+              height: 5
+              width: 6
+              x: 0
+              "y": 0
+            - content:
+                $ref: '#/spec/panels/avgResponseTime'
+              height: 5
+              width: 6
+              x: 6
+              "y": 0
+            - content:
+                $ref: '#/spec/panels/promptTokenRate'
+              height: 5
+              width: 6
+              x: 12
+              "y": 0
+            - content:
+                $ref: '#/spec/panels/completionTokenRate'
+              height: 5
+              width: 6
+              x: 18
+              "y": 0
+      - kind: Grid
+        spec:
+          display:
+            title: Request rate by provider
+            collapse:
+              open: true
+          items:
+            - content:
+                $ref: '#/spec/panels/requestRateByProvider'
+              height: 10
+              width: 24
+              x: 0
+              "y": 0
+      - kind: Grid
+        spec:
+          display:
+            title: Token throughput
+            collapse:
+              open: true
+          items:
+            - content:
+                $ref: '#/spec/panels/tokenThroughput'
+              height: 10
+              width: 24
+              x: 0
+              "y": 0
+    panels:
+      lifetimeRequests:
+        kind: Panel
+        spec:
+          display:
+            name: Lifetime requests
+            description: Total requests since the simulator was first started (persisted across restarts).
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              format:
+                unit: decimal
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                      name: data-science-prometheus-datasource
+                    query: llm_katan_lifetime_requests_total{k8s_namespace_name="llm-katan"}
+                    seriesNameFormat: Total requests
+
+      avgResponseTime:
+        kind: Panel
+        spec:
+          display:
+            name: Avg response time
+            description: Rolling average response time across the last 1000 requests (gauge, not a histogram).
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              format:
+                unit: seconds
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                      name: data-science-prometheus-datasource
+                    query: llm_katan_response_time_seconds{k8s_namespace_name="llm-katan"}
+                    seriesNameFormat: Avg response (s)
+
+      promptTokenRate:
+        kind: Panel
+        spec:
+          display:
+            name: Prompt token rate
+            description: Prompt tokens per second (resets on pod restart).
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              format:
+                unit: decimal
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                      name: data-science-prometheus-datasource
+                    query: rate(llm_katan_prompt_tokens_total{k8s_namespace_name="llm-katan"}[5m])
+                    seriesNameFormat: Prompt tok/s
+
+      completionTokenRate:
+        kind: Panel
+        spec:
+          display:
+            name: Completion token rate
+            description: Completion tokens per second (resets on pod restart).
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              format:
+                unit: decimal
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                      name: data-science-prometheus-datasource
+                    query: rate(llm_katan_completion_tokens_total{k8s_namespace_name="llm-katan"}[5m])
+                    seriesNameFormat: Completion tok/s
+
+      requestRateByProvider:
+        kind: Panel
+        spec:
+          display:
+            name: Requests/s by provider
+            description: Per-provider request rate from lifetime counters. The provider label matches the upstream API format (openai, anthropic, vertexai, bedrock, azure_openai).
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                position: bottom
+                mode: list
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                      name: data-science-prometheus-datasource
+                    query: rate(llm_katan_lifetime_provider_requests_total{k8s_namespace_name="llm-katan", provider=~"$provider"}[5m])
+                    seriesNameFormat: '{{provider}}'
+
+      tokenThroughput:
+        kind: Panel
+        spec:
+          display:
+            name: Token throughput (prompt + completion)
+            description: Combined token rate. Counters reset on pod restart; use the Usage tab for durable MaaS gateway token accounting.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                position: bottom
+                mode: list
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                      name: data-science-prometheus-datasource
+                    query: rate(llm_katan_prompt_tokens_total{k8s_namespace_name="llm-katan"}[5m])
+                    seriesNameFormat: Prompt tokens/s
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                      name: data-science-prometheus-datasource
+                    query: rate(llm_katan_completion_tokens_total{k8s_namespace_name="llm-katan"}[5m])
+                    seriesNameFormat: Completion tokens/s
