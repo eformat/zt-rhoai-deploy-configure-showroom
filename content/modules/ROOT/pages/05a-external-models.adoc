@@ -257,6 +257,21 @@ The token counters in this dashboard reset on pod restart. For durable token acc
 the MaaS gateway's Limitador subscription counters.
 ====
 
+[NOTE]
+.Why only four provider series?
+====
+The `provider` label in the simulator's metrics reflects the wire format the sim actually
+receives, not the MaaS provider type declared in the `ExternalModel`. The four high-level
+providers (OpenAI, Anthropic, Azure OpenAI, Bedrock) all reach the sim via the MaaS
+gateway in their respective wire formats — but Bedrock calls arrive at the sim's
+`/v1/chat/completions` endpoint in OpenAI format (the gateway abstracts the format), so
+the sim classifies them as `openai`. Only `sim-vertex-openai` gets its own label
+(`vertexai (openai-compat)`) because it is authored as a low-level inference
+`ExternalProvider` with a distinct URL path that the sim recognises as its Vertex AI
+handler. In practice this means the `openai` series represents both `sim-openai` and
+`sim-bedrock` traffic combined.
+====
+
 === Known caveats
 
 [NOTE]
