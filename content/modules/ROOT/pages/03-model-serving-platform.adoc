@@ -78,7 +78,7 @@ cluster the relevant one is *{vllm_cpu_runtime_label}* — it is pre-installed a
 uses the Red Hat-supported, digest-pinned vLLM CPU image, so you do not build or ship your own
 runtime.
 
-You can confirm it under *Settings -> Serving runtimes* in the {rhoai-short} dashboard (toggle
+You can confirm it under *Settings -> Model resources and operations -> Serving runtimes* in the {rhoai-short} dashboard (toggle
 *Enabled*). It is delivered as a runtime *template*: deploying a model through the dashboard
 instantiates it into your project automatically. Because this workshop drives everything from the
 CLI, instantiate it into the project once, up front.
