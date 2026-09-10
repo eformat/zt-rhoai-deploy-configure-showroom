@@ -58,8 +58,117 @@ Now that the operator is running, let's tell it what to do by creating the `Data
 
 == Exercise 2: Create the DataScienceCluster
 
-The `DataScienceCluster` (DSC) turns on {rhoai-short} components. This workshop needs, at minimum,
-the dashboard and KServe (single-model serving).
+The `DSCInitialization` (DSCI) sets cluster-wide defaults — monitoring, CA trust, and the
+applications namespace — while the `DataScienceCluster` (DSC) controls which components are
+active.
+
+The DSCI is applied once and rarely changes:
+
+[source,yaml]
+----
+apiVersion: dscinitialization.opendatahub.io/v1
+kind: DSCInitialization
+metadata:
+  name: default-dsci
+spec:
+  applicationsNamespace: redhat-ods-applications  # <1>
+  monitoring:
+    managementState: Managed                      # <2>
+    metrics:
+      retention: 90d
+      storage:
+        size: 5Gi
+    namespace: redhat-ods-monitoring              # <3>
+  trustedCABundle:
+    managementState: Managed                      # <4>
+    customCABundle: ""
+----
+<1> The namespace where RHOAI core components (dashboard, model controller) run.
+<2> Enables the data-science MonitoringStack (Prometheus + Thanos + Perses) in the
+    monitoring namespace — required for the Observability dashboard in Module 5+.
+<3> The monitoring namespace where Prometheus, Thanos, and Perses dashboards are deployed.
+<4> Injects the cluster CA bundle into RHOAI-managed pods. Leave `customCABundle` empty to
+    use the cluster default; set it to a PEM string for a custom CA (e.g. a corporate proxy).
+
+ifeval::["{rhoai_version}" == "3.5"]
+The DSC controls every {rhoai-short} subsystem via `managementState: Managed | Removed`. Review
+the key sections before applying:
+
+[source,yaml]
+----
+apiVersion: datasciencecluster.opendatahub.io/v1
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+spec:
+  components:
+    dashboard:
+      managementState: Managed                    # <1>
+    kserve:
+      managementState: Managed                    # <2>
+      nim:
+        managementState: Managed
+      rawDeploymentServiceConfig: Headless
+    aigateway:
+      managementState: Managed                    # <3>
+      modelsAsAService:
+        managementState: Removed                  # <4>
+    workbenches:
+      managementState: Managed
+    datasciencepipelines:
+      managementState: Managed
+    modelregistry:
+      managementState: Managed
+      registriesNamespace: rhoai-model-registries  # <5>
+    ogx:
+      managementState: Removed                    # <6>
+----
+<1> RHOAI dashboard — the web console for all platform users.
+<2> KServe — the single-model serving runtime used for vLLM and llm-d workloads.
+<3> AI Gateway — the 3.5 component that manages the MaaS gateway infrastructure.
+<4> `modelsAsAService` is intentionally `Removed` at install time. Module 5 enables it
+    *after* Red Hat Connectivity Link and the gateway are deployed — enabling it now
+    blocks the DSC with `AIGatewayReady=False`.
+<5> Model Registry namespace — must match what you reference in Module 3+.
+<6> Gen AI studio (OGX) — enabled later via a separate patch in Module 5.
+endif::[]
+
+ifeval::["{rhoai_version}" == "3.4"]
+The DSC controls every {rhoai-short} subsystem via `managementState: Managed | Removed`. Review
+the key sections before applying:
+
+[source,yaml]
+----
+apiVersion: datasciencecluster.opendatahub.io/v1
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+spec:
+  components:
+    dashboard:
+      managementState: Managed                    # <1>
+    kserve:
+      managementState: Managed                    # <2>
+      modelsAsService:
+        managementState: Removed                  # <3>
+      nim:
+        managementState: Managed
+      rawDeploymentServiceConfig: Headless
+    workbenches:
+      managementState: Managed
+    datasciencepipelines:
+      managementState: Managed
+    modelregistry:
+      managementState: Managed
+      registriesNamespace: rhoai-model-registries  # <4>
+----
+<1> RHOAI dashboard — the web console for all platform users.
+<2> KServe — the single-model serving runtime used for vLLM workloads.
+<3> `modelsAsService` is intentionally `Removed` at install time. Module 5 enables it
+    *after* Red Hat Connectivity Link and the gateway are deployed — enabling it now
+    blocks the DSC with `ModelsAsServiceReady=False`.
+<4> Model Registry namespace — must match what you reference in Module 3+.
+endif::[]
 
 . Apply the DSCInitialization and DataScienceCluster:
 +

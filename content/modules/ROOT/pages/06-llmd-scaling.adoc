@@ -102,6 +102,51 @@ gateway. This reuses one Envoy proxy — saving CPU on a single node — and put
 governance, so you publish it with a subscription in Exercise 3 and its token usage flows into the
 Module 5 telemetry.
 
+Review the key fields of the `LLMInferenceService` before applying:
+
+[source,yaml]
+----
+apiVersion: serving.kserve.io/v1alpha1
+kind: LLMInferenceService
+metadata:
+  name: qwen25-05b-llmd
+spec:
+  model:
+    uri: "oci://quay.io/.../qwen2.5-0.5b-instruct"  # <1>
+    name: qwen25-05b                                 # <2>
+  # spec.replicas is intentionally OMITTED            <3>
+  router:
+    scheduler: {}                                    # <4>
+    route: {}                                        # <5>
+    gateway:
+      refs:
+        - name: maas-default-gateway                 # <6>
+          namespace: openshift-ingress
+  template:
+    containers:
+      - name: main
+        args:
+          - "--max-model-len=8192"                    # <7>
+          - "--max-num-seqs=8"                        # <8>
+        resources:
+          limits:
+            cpu: "4"
+            memory: 8Gi                              # <9>
+----
+<1> OCI modelcar image containing the model weights — pulled at pod start.
+<2> The model name vLLM serves at `/v1/completions` and `/v1/chat/completions`.
+<3> `replicas` is **not set** so KEDA (Exercise 4) can own the replica count. If set,
+    the KServe controller overwrites KEDA's scaling on every reconcile.
+<4> Deploys the llm-d Endpoint Picker (EPP) — the prefix-aware scheduler that routes
+    requests to the optimal vLLM worker.
+<5> Creates an HTTPRoute for the model on the gateway.
+<6> Attaches to the existing MaaS gateway (Module 5) instead of creating a separate one.
+<7> Caps the KV cache context length. Without this, vLLM allocates for the model's full
+    32K context and OOMs on CPU nodes.
+<8> Limits concurrent sequences to 8 — makes requests queue sooner, giving KEDA a
+    measurable `num_requests_waiting` signal to scale on.
+<9> Memory is bounded by `--max-model-len` + KV cache size. 8Gi fits the 0.5B model.
+
 [source,bash,role="execute",subs="attributes"]
 ----
 oc apply -k manifests/06-llmd/service -n {project_name}
@@ -201,6 +246,47 @@ With a high-limit subscription in place, let's wire KEDA to the queue-depth metr
 
 Grant KEDA read access to user-workload monitoring, then create a `ScaledObject` that scales the
 vLLM Deployment on queue depth (`vllm:num_requests_waiting`) pulled from Thanos.
+
+Review the `ScaledObject` — this is what tells KEDA *when* and *how far* to scale:
+
+[source,yaml]
+----
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: qwen25-05b-llmd-keda
+spec:
+  scaleTargetRef:
+    kind: Deployment
+    name: qwen25-05b-llmd-kserve              # <1>
+  minReplicaCount: 1                           # <2>
+  maxReplicaCount: 4                           # <3>
+  pollingInterval: 15                          # <4>
+  cooldownPeriod: 60                           # <5>
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: https://thanos-querier  # <6>
+        query: >-
+          sum(vllm:num_requests_waiting
+          {namespace="rhoai-deploy"})           # <7>
+        threshold: "5"                          # <8>
+      authenticationRef:
+        name: ai-inference-keda-thanos          # <9>
+----
+<1> The Deployment KServe creates for the `LLMInferenceService` (`<name>-kserve`).
+<2> Never scale below 1 — keeps the model warm for instant response.
+<3> Maximum 4 replicas (each needs 4 CPU + 8Gi — size the node accordingly).
+<4> KEDA polls the metric every 15 seconds.
+<5> After the metric drops below the threshold, KEDA waits 60s before scaling down —
+    prevents flapping on bursty traffic.
+<6> In-cluster Thanos querier (port 9091, RBAC-gated).
+<7> Sum of `vllm:num_requests_waiting` across all vLLM pods in the namespace — this is the
+    inference queue depth. Requests queue when `--max-num-seqs` (8) is saturated.
+<8> Scale when the average queue depth per replica exceeds 5. With `--max-num-seqs=8` and
+    concurrency 16, ~8 requests queue → `ceil(8/5) = 2` replicas.
+<9> `ClusterTriggerAuthentication` that supplies a ServiceAccount token with
+    `cluster-monitoring-view` RBAC — lets KEDA read from Thanos.
 
 [source,bash,role="execute"]
 ----

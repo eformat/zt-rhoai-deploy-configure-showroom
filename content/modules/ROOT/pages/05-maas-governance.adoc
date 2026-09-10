@@ -72,7 +72,29 @@ The order matters here. The Kuadrant custom resource and the gateway both depend
 resources that do not exist until the operators have finished installing, so each step
 below waits for its prerequisite before moving on.
 
-. Install the {rhcl} and cert-manager operators (subscriptions only):
+. Install the {rhcl} and cert-manager operators (subscriptions only). The RHCL subscription
+  includes a timeout tuning for Authorino's ext_authz service:
++
+[source,yaml]
+----
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: rhcl-operator
+  namespace: openshift-operators
+spec:
+  channel: stable
+  name: rhcl-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  config:
+    env:
+      - name: AUTH_SERVICE_TIMEOUT    # <1>
+        value: "10s"
+----
+<1> Increases the Authorino ext_authz timeout from the default (200ms) to 10s. Under load
+    the default timeout is too tight — Authorino can't validate the API key in time, and the
+    gateway returns an intermittent HTTP 500 instead of retrying.
 +
 [source,bash,role="execute"]
 ----
@@ -96,7 +118,23 @@ oc wait --for=jsonpath='{.status.phase}'=Succeeded \
   -n cert-manager-operator --timeout=5m
 ----
 
-. Register Kuadrant now that its CRD exists, and wait for it to become ready:
+. Register Kuadrant now that its CRD exists. The `Kuadrant` CR bootstraps Authorino
+  (authentication) and Limitador (rate limiting) in the `kuadrant-system` namespace:
++
+[source,yaml]
+----
+apiVersion: kuadrant.io/v1beta1
+kind: Kuadrant
+metadata:
+  name: kuadrant
+  namespace: kuadrant-system
+spec:
+  observability:
+    enable: true   # <1>
+----
+<1> Creates ServiceMonitors/PodMonitors that scrape Limitador and Authorino metrics into
+    the data-science MonitoringStack. Without this, the *Usage* tab in the Observability
+    dashboard has no token consumption data.
 +
 [source,bash,role="execute"]
 ----
@@ -359,9 +397,23 @@ With the observability stack healthy, let's enable MaaS in the platform and surf
 
 == Exercise 3c: Enable MaaS in the DSC and dashboard
 
-. Enable MaaS in the `DataScienceCluster` and the dashboard:
+. Enable MaaS in the `DataScienceCluster` and the dashboard. The DSC patch flips on the
+  MaaS subsystem that was intentionally left `Removed` at install time:
 +
 ifeval::["{rhoai_version}" == "3.4"]
+[source,yaml]
+----
+# dsc-maas-patch.yaml (3.4)
+spec:
+  components:
+    kserve:
+      modelsAsService:
+        managementState: Managed  # <1>
+----
+<1> Enables MaaS under the `kserve` component. This deploys the MaaS controller, gateway
+    routing, and the `maas-api` pod. It was `Removed` in Module 1 because enabling it
+    before RHCL and the gateway exist blocks the DSC with `ModelsAsServiceReady=False`.
++
 [source,bash,role="execute"]
 ----
 oc patch datasciencecluster default-dsc --type merge \
@@ -375,6 +427,21 @@ This sets `spec.components.kserve.modelsAsService.managementState: Managed` in t
 feature flags in `OdhDashboardConfig`.
 endif::[]
 ifeval::["{rhoai_version}" == "3.5"]
+[source,yaml]
+----
+# dsc-maas-patch-35.yaml (3.5)
+spec:
+  components:
+    aigateway:
+      managementState: Managed         # <1>
+      modelsAsAService:
+        managementState: Managed       # <2>
+----
+<1> AI Gateway component — manages the gateway infrastructure (Envoy, IPP, routing).
+<2> MaaS subsystem — deploys the MaaS controller, `maas-api`, and subscription/auth
+    machinery. It was `Removed` in Module 1 because enabling it before RHCL and the
+    gateway exist blocks the DSC with `AIGatewayReady=False`.
++
 [source,bash,role="execute"]
 ----
 oc patch datasciencecluster default-dsc --type merge \
