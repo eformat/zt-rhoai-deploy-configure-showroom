@@ -38,6 +38,10 @@ spec:
     ogx:
       managementState: Removed
     # Not needed for the workshop
+    # llamastackoperator must be Removed before OGX can be enabled — they are
+    # mutually exclusive (OGX supersedes LlamaStack).
+    llamastackoperator:
+      managementState: Removed
     feastoperator:
       managementState: Removed
     codeflare:
