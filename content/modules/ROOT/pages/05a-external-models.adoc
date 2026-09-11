@@ -130,6 +130,101 @@ The llm-katan Helm chart deploys a simulator pod and creates `ExternalProvider` 
 CRs for each of the five supported provider types. The ExternalModel controller then creates the
 HTTPRoutes and Services that wire them to `maas-default-gateway`.
 
+The chart renders two kinds of external model. Four providers use the **high-level** maas
+`ExternalModel` — here is `sim-openai` as an example:
+
+[source,yaml]
+----
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: ExternalModel                    # <1>
+metadata:
+  name: sim-openai
+  namespace: llm-katan
+  annotations:
+    maas.opendatahub.io/tls: "false"
+spec:
+  provider: openai                     # <2>
+  targetModel: sim-openai              # <3>
+  endpoint: sim.llm-katan.svc.cluster.local  # <4>
+  credentialRef:
+    name: sim-openai                   # <5>
+----
+<1> High-level `maas.opendatahub.io` ExternalModel — the MaaS controller expands this into
+    the low-level `inference.opendatahub.io` ExternalProvider + ExternalModel, HTTPRoutes,
+    Services, and DestinationRules automatically.
+<2> Provider wire format — IPP translates the request to this provider's native API.
+<3> The model name the upstream (simulator) serves.
+<4> In-cluster simulator service. The MaaS controller creates an ExternalName Service that
+    routes through the Istio mesh with TLS origination.
+<5> Secret containing the API key (labelled `inference.llm-d.ai/ipp-managed: "true"` so IPP
+    injects it into upstream requests).
+
+Each `ExternalModel` is published through a **`MaaSModelRef`** — the same pattern as locally-served
+models in Module 5:
+
+[source,yaml]
+----
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: sim-openai
+  namespace: llm-katan                 # <1>
+spec:
+  modelRef:
+    kind: ExternalModel                # <2>
+    name: sim-openai
+----
+<1> Must be in the same namespace as the `ExternalModel`.
+<2> `kind: ExternalModel` — resolves to either the high-level maas or low-level inference
+    variant. Governance (subscription, auth policy, rate limits) works identically for both.
+
+Vertex AI uses the **low-level** `inference.opendatahub.io` ExternalProvider + ExternalModel
+directly (see the NOTE in the resource model section above for why):
+
+[source,yaml]
+----
+apiVersion: inference.opendatahub.io/v1alpha1
+kind: ExternalProvider                 # <1>
+metadata:
+  name: sim-vertex-openai
+  namespace: llm-katan
+spec:
+  provider: vertex-openai
+  endpoint: sim.simulator              # <2>
+  auth:
+    type: apikey
+    secretRef:
+      name: sim-vertex-openai
+  config:                              # <3>
+    project: sim-project
+    location: us-central1
+    endpoint: sim-endpoint
+---
+apiVersion: inference.opendatahub.io/v1alpha1
+kind: ExternalModel                    # <4>
+metadata:
+  name: sim-vertex-openai
+  namespace: llm-katan
+spec:
+  modelName: sim-vertex-openai
+  externalProviderRefs:
+    - ref:
+        name: sim-vertex-openai
+      targetModel: sim-vertex-openai
+      apiFormat: openai-chat
+      path: /v1/projects/{project}/locations/{location}/endpoints/{endpoint}/chat/completions  # <5>
+      weight: 1
+----
+<1> Low-level ExternalProvider — a first-class `config` object for provider-specific settings.
+<2> `sim.simulator` — the mesh-internal host with the skip-verify DestinationRule (see the
+    two-layer NOTE above). The EP controller owns the generated Service and sets its
+    `externalName` to this value.
+<3> Project, location, and endpoint values that resolve the `{placeholder}` tokens in the
+    request path. These are dummy values for the simulator.
+<4> Low-level ExternalModel — carries the request path, API format, and provider ref.
+<5> The path template — placeholders resolve from the ExternalProvider's `config` at
+    reconcile time.
+
 . Deploy the simulator with `helm template` piped into `oc apply --server-side`. The
   `--server-side` flag is required because the ExternalModel controller creates resources from the
   ExternalModel CRs (HTTPRoutes, Services) that would otherwise conflict with `helm install`
