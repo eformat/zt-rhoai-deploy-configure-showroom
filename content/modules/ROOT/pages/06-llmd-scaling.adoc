@@ -204,18 +204,55 @@ The model now serves behind the MaaS gateway, which *default-denies* — every r
 key bound to a subscription, or it is rejected before it can reach the queue. Publish the model and
 grant it a budget so the load test in Exercise 5 can build queue depth freely.
 
-. Apply the MaaS governance CRs for the llm-d model:
+. Apply the MaaS governance CRs for the llm-d model. The pattern mirrors Module 5 Exercise 5
+  but with a deliberately high token limit:
++
+[source,yaml]
+----
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: qwen25-05b-llmd
+  namespace: rhoai-deploy                # <1>
+spec:
+  modelRef:
+    kind: LLMInferenceService            # <2>
+    name: qwen25-05b-llmd
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSSubscription
+metadata:
+  name: qwen25-05b-llmd-demo
+  namespace: models-as-a-service         # <3>
+spec:
+  owner:
+    groups:
+      - name: system:authenticated:oauth
+  tokenMetadata:
+    costCenter: na                        # <4>
+    organizationId: na
+  modelRefs:
+    - name: qwen25-05b-llmd
+      namespace: rhoai-deploy
+      tokenRateLimits:
+        - limit: 5000000
+          window: 1m                      # <5>
+----
+<1> Same namespace as the `LLMInferenceService` — the `MaaSModelRef` has no namespace field
+    in its `modelRef`, so it must be co-located.
+<2> `kind: LLMInferenceService` — not `InferenceService`. The MaaS catalog resolves the
+    model's gateway path from this.
+<3> `models-as-a-service` — the only namespace `maas-api` reads subscriptions from.
+<4> Placeholder `tokenMetadata` keeps the TelemetryPolicy CEL expressions valid so
+    Limitador records `authorized_hits` (otherwise the Usage dashboard stays empty).
+<5> 5 million tokens / minute — effectively unlimited for a 0.5B CPU model. Unlike Module
+    5's 100-token cap (which demonstrates rate limiting), this lets the load test build a
+    request queue for KEDA to scale on without being throttled.
 +
 [source,bash,role="execute"]
 ----
 oc apply -k manifests/06-llmd/maas-subscription
 ----
-+
-This creates a `MaaSModelRef` (pointing at the `qwen25-05b-llmd` `LLMInferenceService`), a
-`MaaSSubscription` (`qwen25-05b-llmd-demo`), and a `MaaSAuthPolicy`. As in Module 5, the
-`MaaSModelRef` lands in the workshop project while the subscription and auth policy land in
-`models-as-a-service` (the only namespace `maas-api` reads subscriptions from), and both grant the
-`system:authenticated:oauth` group.
 
 [NOTE]
 ====
