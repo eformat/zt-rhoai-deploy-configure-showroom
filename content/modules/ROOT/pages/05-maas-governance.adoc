@@ -543,16 +543,72 @@ The model is serving through the gateway. Now let's wire up the governance layer
 Publish the `LLMInferenceService` through MaaS and govern it with a subscription and a token rate
 limit.
 
-. Apply the governance CRs:
+. Apply the governance CRs. Three resources work together to publish the model through the
+  gateway with authentication and rate limiting:
++
+[source,yaml]
+----
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef                      # <1>
+metadata:
+  name: qwen25-05b-maas
+  namespace: rhoai-deploy               # <2>
+spec:
+  modelRef:
+    kind: LLMInferenceService
+    name: qwen25-05b-maas
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSSubscription                  # <3>
+metadata:
+  name: qwen25-05b-demo
+  namespace: models-as-a-service        # <4>
+spec:
+  owner:
+    groups:
+      - name: system:authenticated:oauth  # <5>
+  tokenMetadata:
+    costCenter: na                       # <6>
+    organizationId: na
+  modelRefs:
+    - name: qwen25-05b-maas
+      namespace: rhoai-deploy
+      tokenRateLimits:
+        - limit: 100
+          window: 1m                     # <7>
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSAuthPolicy                    # <8>
+metadata:
+  name: qwen25-05b-auth
+  namespace: models-as-a-service
+spec:
+  subjects:
+    groups:
+      - name: system:authenticated:oauth
+  modelRefs:
+    - name: qwen25-05b-maas
+      namespace: rhoai-deploy
+----
+<1> Publishes the model through MaaS — makes it appear in `/maas-api/v1/models`.
+<2> Must live in the **same namespace** as the `LLMInferenceService` it references.
+<3> Grants a token budget and rate limit to callers.
+<4> Must live in `models-as-a-service` — the only namespace `maas-api` reads subscriptions
+    from. A subscription in any other namespace is silently ignored.
+<5> `system:authenticated:oauth` — the group OpenShift OAuth users present. Plain
+    `system:authenticated` never matches the generated AuthPolicy and every call gets 403.
+<6> Placeholder values for `tokenMetadata`. RHCL 1.4.2 evaluates CEL label expressions
+    strictly: without these, Limitador never records `authorized_hits` and the Usage
+    dashboard token panels stay empty.
+<7> 100 tokens per minute — intentionally low to demonstrate rate limiting (HTTP 429) in
+    Exercise 7.
+<8> Binds API-key authentication (Authorino) to the published model. Subjects must match
+    the subscription's `owner.groups`.
 +
 [source,bash,role="execute",subs="attributes"]
 ----
 oc apply -k manifests/05-maas/subscription
 ----
-+
-This creates a `MaaSModelRef` (pointing at the `qwen25-05b-maas` `LLMInferenceService`), a
-`MaaSSubscription` (`qwen25-05b-demo`, with a 100-token-per-minute rate limit granted to all
-authenticated users), and a `MaaSAuthPolicy`.
 +
 [NOTE]
 ====
@@ -569,14 +625,57 @@ actually presents; plain `system:authenticated` never matches and every call is 
   CRs target `maas-default-gateway` and build on the `MaaSAuthPolicy` you just created, so they are
   applied after governance. You *view* these metrics in Exercise 8, after generating traffic:
 +
+[source,yaml]
+----
+apiVersion: extensions.kuadrant.io/v1alpha1
+kind: TelemetryPolicy                  # <1>
+metadata:
+  name: maas-telemetry
+  namespace: openshift-ingress
+spec:
+  metrics:
+    default:
+      labels:
+        model: responseBodyJSON("/model")       # <2>
+        user: auth.identity.userid              # <3>
+        subscription: auth.identity.selected_subscription
+        organization_id: auth.identity.subscription_info.organizationId
+        cost_center: auth.identity.subscription_info.costCenter
+  targetRef:
+    kind: Gateway
+    name: maas-default-gateway
+---
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry                         # <4>
+metadata:
+  name: latency-per-subscription
+  namespace: openshift-ingress
+spec:
+  selector:
+    matchLabels:
+      gateway.networking.k8s.io/gateway-name: maas-default-gateway
+  metrics:
+    - overrides:
+        - match:
+            metric: REQUEST_DURATION
+          tagOverrides:
+            subscription:
+              value: request.headers["x-maas-subscription"]  # <5>
+----
+<1> Kuadrant `TelemetryPolicy` — labels the Limitador `authorized_hits` counter with
+    identity fields extracted from the authenticated request.
+<2> Model name parsed from the response body — powers the per-model Usage breakdown.
+<3> Username, subscription, org, and cost center are injected by the `MaaSAuthPolicy`
+    into the request headers; the policy reads them back here.
+<4> Istio `Telemetry` — adds a `subscription` tag to the gateway's `REQUEST_DURATION`
+    histogram so latency can be broken down per subscription.
+<5> The `x-maas-subscription` header is set by the auth layer after resolving the API
+    key's subscription.
++
 [source,bash,role="execute"]
 ----
 oc apply -k manifests/05-maas/telemetry
 ----
-+
-This creates an Istio `Telemetry` (tagging gateway latency with the `x-maas-subscription` header)
-and a Kuadrant `TelemetryPolicy` (labelling token-usage metrics with the model, user, subscription,
-organization, and cost center from the authenticated request).
 
 [NOTE]
 ====
