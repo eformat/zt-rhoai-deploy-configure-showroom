@@ -236,6 +236,30 @@ helm template sim manifests/05-maas/llm-katan-simulator --skip-crds \
   | oc apply --server-side --force-conflicts -f -
 ----
 
+. The `ipp-legacy-migration` controller migrates each high-level maas `ExternalModel` into a
+  low-level inference `ExternalProvider` with `endpoint` set to the raw cluster service
+  (`sim.llm-katan.svc.cluster.local`). That host has no `insecureSkipVerify` DestinationRule,
+  so the simulator's self-signed TLS cert is rejected. Patch the migrated ExternalProviders to
+  use `sim.simulator` — the mesh-internal host that carries the skip-verify DR:
++
+[source,bash,role="execute"]
+----
+for model in openai anthropic azure-openai bedrock; do
+  oc patch externalproviders.inference.opendatahub.io sim-${model} -n llm-katan \
+    --type=merge -p '{"spec":{"endpoint":"sim.simulator"}}'
+done
+----
++
+[NOTE]
+====
+This step is not needed for `sim-vertex-openai` — it is authored directly as a low-level
+`ExternalProvider` with `endpoint: sim.simulator` in the chart, so it already uses the
+working TLS path. This is a platform bug fixed by
+`models-as-a-service` PR #1417 (see *Known caveats* below). Once that fix ships, the
+migrated ExternalProviders will inherit the correct endpoint and this patch becomes
+unnecessary.
+====
+
 . Wait for the simulator to start. First boot installs llm-katan from PyPI (~60 s):
 +
 [source,bash,role="execute"]
@@ -313,6 +337,26 @@ the loop.
 * Each provider returns a `200` response with an echo of the input message.
 * All five simulator models appear in *Gen AI studio -> AI asset endpoints* in the {rhoai-short}
   dashboard.
+
+. Open the llm-katan live dashboard to see the request/response detail for every call that
+  flowed through the simulator:
++
+[source,bash,role="execute"]
+----
+export CLUSTER_DOMAIN=$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+echo "https://sim-dashboard-llm-katan.${CLUSTER_DOMAIN}/dashboard"
+----
++
+The dashboard shows per-provider request counts, token consumption, response times, and a
+live event stream (via WebSocket) of every request the simulator processes. It updates in
+real time — run the Exercise 2 curl loop again and watch the counters increment.
++
+You can also query the stats programmatically:
++
+[source,bash,role="execute"]
+----
+curl -sSk "https://sim-dashboard-llm-katan.${CLUSTER_DOMAIN}/stats" | jq .
+----
 
 == Exercise 3: View simulator metrics in the Observability dashboard
 
