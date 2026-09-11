@@ -308,8 +308,30 @@ export SIM_KEY=$(curl -sSk -X POST "${HOST}/maas-api/v1/api-keys" \
 echo "Simulator key: ${SIM_KEY:0:12}..."
 ----
 
-. Call each provider endpoint (all return an echo of the input — no GPU or real model needed):
+. Call each provider. The MaaS gateway supports two routing modes:
 +
+--
+*Body-based routing (recommended).* Send all requests to `${HOST}/v1/chat/completions` and
+specify the model in the JSON body — the same OpenAI-compatible pattern that SDKs and
+application frameworks use. The gateway reads the `model` field from the request body
+and routes to the correct backend:
+
+[source,bash,role="execute"]
+----
+for model in sim-openai sim-anthropic sim-azure-openai sim-bedrock sim-vertex-openai; do
+  echo "--- ${model} ---"
+  curl -sSk "${HOST}/v1/chat/completions" \
+    -H "Authorization: Bearer ${SIM_KEY}" \
+    -H "Content-Type: application/json" \
+    -d "{\"model\":\"${model}\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}" \
+    | jq -Rr '(fromjson? | .choices[0].message.content // .content[0].text) // .'
+done
+----
+
+*Path-based routing.* Encode the model in the URL path as
+`${HOST}/<namespace>/<model>/v1/chat/completions`. This is useful for debugging (each model
+has a distinct URL) but couples the client to the cluster's namespace layout:
+
 [source,bash,role="execute"]
 ----
 for model in sim-openai sim-anthropic sim-azure-openai sim-bedrock sim-vertex-openai; do
@@ -321,6 +343,7 @@ for model in sim-openai sim-anthropic sim-azure-openai sim-bedrock sim-vertex-op
     | jq -Rr '(fromjson? | .choices[0].message.content // .content[0].text) // .'
 done
 ----
+--
 +
 [NOTE]
 ====
