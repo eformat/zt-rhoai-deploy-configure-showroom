@@ -581,7 +581,9 @@ curl -sSk "${HOST}/llm-katan/sim-openai/v1/chat/completions" \
 
 endif::[]
 
-== Cleanup
+== Cleanup (Optional)
+
+You do not need to do this - it is optional. 
 
 To remove the simulator and all associated resources:
 
