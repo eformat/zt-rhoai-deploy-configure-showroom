@@ -113,7 +113,7 @@ metadata:
 spec:
   model:
     uri: "oci://quay.io/.../qwen2.5-0.5b-instruct"  # <1>
-    name: qwen25-05b                                 # <2>
+    name: qwen25-05b-llmd                             # <2>
   # spec.replicas is intentionally OMITTED            <3>
   router:
     scheduler: {}                                    # <4>
@@ -134,7 +134,9 @@ spec:
             memory: 8Gi                              # <9>
 ----
 <1> OCI modelcar image containing the model weights — pulled at pod start.
-<2> The model name vLLM serves at `/v1/completions` and `/v1/chat/completions`.
+<2> The model name vLLM serves at `/v1/completions` and `/v1/chat/completions`. This is
+    deliberately different from the Module 5 model (`qwen25-05b`) so the two generate distinct
+    `publishers/` aliases and their HTTPRoutes don't collide on the gateway.
 <3> `replicas` is **not set** so KEDA (Exercise 4) can own the replica count. If set,
     the KServe controller overwrites KEDA's scaling on every reconcile.
 <4> Deploys the llm-d Endpoint Picker (EPP) — the prefix-aware scheduler that routes

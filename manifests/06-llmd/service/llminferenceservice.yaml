@@ -18,7 +18,7 @@ metadata:
 spec:
   model:
     uri: "oci://quay.io/redhat-ai-services/modelcar-catalog:qwen2.5-0.5b-instruct"
-    name: qwen25-05b
+    name: qwen25-05b-llmd
   # spec.replicas is intentionally OMITTED so the external KEDA ScaledObject
   # (manifests/06-llmd/autoscaling-keda) can own the replica count. KServe's llm-d controller only
   # yields the workload Deployment's replica count to an external autoscaler when spec.replicas is
