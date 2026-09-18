@@ -83,6 +83,8 @@ You can confirm it under *Settings -> Serving runtimes* in the {rhoai-short} das
 instantiates it into your project automatically. Because this workshop drives everything from the
 CLI, instantiate it into the project once, up front.
 
+image::04-serving-runtimes.png[Serving Runtimes,link=self,window=blank,width=800]
+
 NOTE: The dashboard stamps two template-origin annotations when it instantiates a runtime. The CLI
 path (`oc process`) skips this, so the dashboard would show the model under *Unknown Serving
 Runtime*. The `oc annotate` step below adds those annotations — this is cosmetic; the model serves
@@ -147,6 +149,8 @@ oc get secret aws-connection-models -n {project_name} \
 On the same *Settings -> Cluster settings -> General settings* page, under *Default deployment
 strategy*, choose a cluster-wide default for KServe deployments (*Rolling update* or *Recreate*)
 to match your update-availability requirements.
+
+image::05-default-deployment-settings.png[Default Deployment Strategy,link=self,window=blank,width=800]
 
 == Module summary
 
