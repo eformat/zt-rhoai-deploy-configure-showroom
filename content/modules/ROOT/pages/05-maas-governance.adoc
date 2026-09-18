@@ -145,7 +145,7 @@ oc wait --for=condition=Ready kuadrant/kuadrant -n kuadrant-system --timeout=5m
 . Let Authorino trust the cluster service CA — without this, Authorino cannot verify the
   `maas-api` TLS certificate and every API key request returns a gateway 500 error.
 +
-WARNING: This step adds trusted CA material only. Do *not* enable Authorino's `listener` or `oidcServer` TLS — the Kuadrant `ext_authz` filter speaks plaintext gRPC on `:50051`, and enabling TLS there makes every authorized request return `500`.
+WARNING: This step adds trusted CA material only. Do *not* enable Authorino's `listener` or `oidcServer` TLS and do *not* set `mtls.authorino: true` on the Kuadrant CR — the `kuadrant-system` namespace has no Istio sidecars, so the Kuadrant `ext_authz` filter speaks plaintext gRPC on `:50051`. Enabling either form of TLS makes the gateway unable to reach Authorino and turns every request into a `500`.
 +
 [source,bash,role="execute"]
 ----
@@ -535,6 +535,30 @@ oc wait --for=condition=Ready llminferenceservice/qwen25-05b-maas -n {project_na
 ----
 oc get llminferenceservice qwen25-05b-maas -n {project_name}
 ----
+
+ifeval::["{rhoai_version}" == "3.5"]
+[NOTE]
+====
+*Acknowledge the kserve upgrade gate (z-stream updates only).* When a z-stream update is available
+(e.g. 3.5.0 → 3.5.1), the operator's upgrade-gate mechanism detects `LLMInferenceService` workloads
+and checks whether Authorino has application-level TLS enabled on its gRPC listener. In the Kuadrant
+architecture, the `kuadrant-system` namespace has no Istio sidecars and Authorino's listener TLS is
+intentionally disabled — the Kuadrant `ext_authz` EnvoyFilter connects to Authorino over plaintext
+gRPC. The gate writes `Authorino TLS readiness blocking llm-d workloads` into the `ack-3.5-kserve`
+key and the DSC reports `AdminAckRequired`, blocking all component reconciliation. If you see this,
+acknowledge the gate:
+
+[source,bash,role="execute"]
+----
+oc patch configmap odh-upgrade-acks -n redhat-ods-operator --type=merge \
+  -p '{"data":{"ack-3.5-kserve":"true"}}'
+----
+
+This is safe: MaaS API-key authentication and rate limiting are enforced by the Kuadrant
+`AuthPolicy` / `TokenRateLimitPolicy` pipeline, not by the `odh-model-controller` EnvoyFilter the
+gate checks for.
+====
+endif::[]
 
 The model is serving through the gateway. Now let's wire up the governance layer: subscription, auth policy, and telemetry.
 

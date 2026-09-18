@@ -44,6 +44,8 @@ oc wait csv -n redhat-ods-operator \
   -l operators.coreos.com/rhods-operator.redhat-ods-operator \
   --for=jsonpath='{.status.phase}'=Succeeded --timeout=15m
 ----
++
+image::01-install-rhoai-operator.png[RHOAI Operator Installation,link=self,window=blank,width=800]
 
 === Verify
 
@@ -192,6 +194,8 @@ endif::[]
 ----
 oc wait datasciencecluster/default-dsc --for=condition=Ready --timeout=15m
 ----
++
+image::02-dsc-ready.png[DataScienceCluster Ready,link=self,window=blank,width=800]
 
 === Verify
 
@@ -216,6 +220,8 @@ oc get route rhods-dashboard -n redhat-ods-applications -o jsonpath='https://{.s
 . Log in with `{user}` / `{password}` and confirm the {rhoai-short} home page loads.
 
 === Verify
+
+image::03-rhoai-dashboard.png[RHOAI Dashboard Home page,link=self,window=blank,width=800]
 
 * The dashboard route returns HTTP 200 and the landing page renders.
 

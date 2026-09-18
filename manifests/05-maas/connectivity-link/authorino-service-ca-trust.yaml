@@ -29,9 +29,11 @@
 #
 #   The Authorino CR itself is created by the Kuadrant operator; Module 5 patches its
 #   spec.volumes.items to mount these ConfigMaps (Authorino's CRD exposes no env/command, only
-#   ConfigMap/Secret volume mounts). Leave the listener/oidcServer TLS DISABLED: the Kuadrant
-#   ext_authz EnvoyFilter talks to Authorino over PLAINTEXT gRPC (:50051); enabling the TLS
-#   listener breaks ext_authz and turns every authorized request into a 500.
+#   ConfigMap/Secret volume mounts). Leave the listener/oidcServer TLS DISABLED and do NOT set
+#   mtls.authorino on the Kuadrant CR: kuadrant-system has no Istio sidecars, so the Kuadrant
+#   ext_authz EnvoyFilter talks to Authorino over PLAINTEXT gRPC (:50051). Enabling TLS on
+#   either the Authorino listener or via Kuadrant mtls breaks ext_authz and turns every
+#   authorized request into a 500.
 #
 #   Newer RHOAI/MaaS builds replace these HTTPS callouts with TokenReview + SubjectAccessReview
 #   (no service-CA TLS callout), at which point this trust bundle can be dropped.
